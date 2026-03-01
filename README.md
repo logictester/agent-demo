@@ -1,4 +1,4 @@
-# Agent Demo: AI Banking Assistant (Ollama + OneWelcome + OneWelcome IO + Postgres)
+# Agent Demo: AI Banking Assistant (Ollama + OneWelcome + OneWelcome IO + OneWelcome IDV + Postgres)
 
 ## 1) What This App Is
 
