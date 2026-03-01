@@ -21,7 +21,21 @@ CREATE TABLE IF NOT EXISTS delegations (
   idv_verified BOOLEAN NOT NULL DEFAULT FALSE,
   idv_verified_at TIMESTAMPTZ,
   delegated_operations JSONB NOT NULL DEFAULT '[]'::jsonb,
+  delegation_constraints JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS operation_approvals (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  approval_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reason TEXT,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ,
+  resolved_at TIMESTAMPTZ,
+  resolved_by_sub TEXT
 );
 
 CREATE TABLE IF NOT EXISTS idv_sessions (
@@ -79,6 +93,14 @@ CREATE TABLE IF NOT EXISTS agent_interactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS agent_task_contexts (
+  context_key TEXT PRIMARY KEY,
+  context_type TEXT NOT NULL DEFAULT 'generic',
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS transfer_automation_rules (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -102,11 +124,17 @@ CREATE TABLE IF NOT EXISTS transfer_automation_rules (
 CREATE INDEX IF NOT EXISTS idx_users_sub ON users(sub);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_idv_sessions_user_id ON idv_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_operation_approvals_user_status
+  ON operation_approvals(user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_operation_approvals_expires_at
+  ON operation_approvals(expires_at);
 CREATE INDEX IF NOT EXISTS idx_transfers_user_id_created_at ON transfers(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_account_transactions_user_id_created_at
   ON account_transactions(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_interactions_user_id_created_at
   ON agent_interactions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_task_contexts_expires_at
+  ON agent_task_contexts(expires_at);
 CREATE INDEX IF NOT EXISTS idx_transfer_automation_rules_user_id
   ON transfer_automation_rules(user_id);
 CREATE INDEX IF NOT EXISTS idx_transfer_automation_rules_next_run
@@ -118,3 +146,5 @@ ALTER TABLE transfer_automation_rules
   ADD COLUMN IF NOT EXISTS schedule_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE transfer_automation_rules
   ADD COLUMN IF NOT EXISTS adaptive_config JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE delegations
+  ADD COLUMN IF NOT EXISTS delegation_constraints JSONB NOT NULL DEFAULT '{}'::jsonb;

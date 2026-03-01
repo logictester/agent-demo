@@ -6,11 +6,14 @@ import { executeSecureTransfer, parseTransferInput } from "./tools.js";
 import { CAPABILITIES, POLICY, SYSTEM_PROMPT } from "./prompt.js";
 import {
   applyTransferAndUpdateBalances,
+  createOperationApproval,
   createTransferRecord,
   getLastTransfer,
-  getTransactionHistory
+  getTransactionHistory,
+  verifyApprovedOperation
 } from "../services/delegation.js";
 import { createAutomationRule, listAutomationRules, runAutomationRuleNow, updateAutomationRule } from "../services/automation.js";
+import { clearTaskContext, getTaskContext, upsertTaskContext } from "../services/taskContext.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +31,9 @@ const model = new Ollama({
 
 const KNOWN_INTENTS = new Set(CAPABILITIES.map((capability) => capability.intent));
 const AUTOMATION_DRAFT_TTL_MS = 15 * 60 * 1000;
+const AGENT_PLAN_MAX_STEPS = Math.max(2, Number(process.env.AGENT_PLAN_MAX_STEPS) || 6);
+const OOB_APPROVAL_ENABLED = String(process.env.OOB_APPROVAL_ENABLED || "true").toLowerCase() !== "false";
+const OOB_APPROVAL_TTL_SECONDS = Math.max(60, Number(process.env.OOB_APPROVAL_TTL_SECONDS) || 600);
 const pendingAutomationDrafts = new Map();
 
 function extractJsonObject(text) {
@@ -271,6 +277,86 @@ ${userQuestion}
   return parseIntentPayload(raw);
 }
 
+function parseExecutionPlanPayload(rawModelText) {
+  const jsonText = extractJsonObject(rawModelText);
+  if (!jsonText) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    const steps = Array.isArray(parsed?.steps)
+      ? parsed.steps
+          .map((step) => ({
+            tool: String(step?.tool || "").trim().toLowerCase(),
+            purpose: String(step?.purpose || "").trim()
+          }))
+          .filter((step) => step.tool && step.purpose)
+      : [];
+    const needsClarification = Boolean(parsed?.needsClarification);
+    const clarificationQuestion = String(parsed?.clarificationQuestion || "").trim();
+    return { steps, needsClarification, clarificationQuestion };
+  } catch {
+    return null;
+  }
+}
+
+async function buildExecutionPlan(userQuestion, context, intentPayload) {
+  const prompt = `${SYSTEM_PROMPT}
+You are an execution planner for a banking assistant.
+Return JSON only with this schema:
+{
+  "steps":[{"tool":"string","purpose":"string"}],
+  "needsClarification":false,
+  "clarificationQuestion":""
+}
+
+Rules:
+- Keep plans short and safe (max ${AGENT_PLAN_MAX_STEPS} steps).
+- Allowed tool names:
+  classify_intent, load_context, check_delegation, parse_transfer, evaluate_risk,
+  execute_transfer, load_identity, load_history, manage_automation_draft, run_automation_rule,
+  explain_policy, synthesize_response
+- If key details are missing and intent is operational, set needsClarification=true with a concise question.
+- Never include markdown.
+
+Intent:
+${JSON.stringify(intentPayload || {}, null, 2)}
+
+Context:
+${JSON.stringify(context || {}, null, 2)}
+
+User question:
+${String(userQuestion || "")}
+`;
+
+  const raw = await model.invoke(prompt);
+  const parsed = parseExecutionPlanPayload(raw);
+  if (!parsed) {
+    return {
+      steps: [
+        { tool: "load_context", purpose: "Load available policy and user context." },
+        { tool: "synthesize_response", purpose: "Return a grounded response." }
+      ],
+      needsClarification: false,
+      clarificationQuestion: ""
+    };
+  }
+
+  const steps = parsed.steps.slice(0, AGENT_PLAN_MAX_STEPS);
+  if (!steps.length) {
+    steps.push(
+      { tool: "load_context", purpose: "Load available policy and user context." },
+      { tool: "synthesize_response", purpose: "Return a grounded response." }
+    );
+  }
+  return {
+    steps,
+    needsClarification: parsed.needsClarification,
+    clarificationQuestion: parsed.clarificationQuestion
+  };
+}
+
 async function synthesizeResponse(userQuestion, facts) {
   const prompt = `${SYSTEM_PROMPT}
 Generate a concise user-facing response using only the trusted facts below.
@@ -301,6 +387,59 @@ function delegationBlock(userInfo, delegation, operationKey) {
   return null;
 }
 
+function transferRiskTier(amount) {
+  const value = Number(amount);
+  if (!Number.isFinite(value) || value <= 0) {
+    return "Low";
+  }
+  if (value > Number(POLICY.highRiskTransferThreshold)) {
+    return "High";
+  }
+  if (value > Number(POLICY.mediumRiskTransferThreshold || POLICY.highRiskTransferThreshold)) {
+    return "Medium";
+  }
+  return "Low";
+}
+
+function validateTransferAgainstDelegationConstraints(delegation, transferAmount, purpose) {
+  const constraints = delegation?.constraints && typeof delegation.constraints === "object"
+    ? delegation.constraints
+    : {};
+  const nowMs = Date.now();
+  const expiresAtRaw = String(constraints.expiresAt || "").trim();
+  if (expiresAtRaw) {
+    const expiresAt = new Date(expiresAtRaw).getTime();
+    if (Number.isFinite(expiresAt) && nowMs >= expiresAt) {
+      return {
+        ok: false,
+        reason: "Delegation has expired. Please renew delegation settings."
+      };
+    }
+  }
+
+  const allowedPurposes = Array.isArray(constraints.purposes)
+    ? constraints.purposes.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  const fallbackPurpose = String(constraints.purpose || "").trim();
+  const purposeSet = new Set(allowedPurposes.length ? allowedPurposes : fallbackPurpose ? [fallbackPurpose] : []);
+  if (purposeSet.size > 0 && purpose && !purposeSet.has(purpose)) {
+    return {
+      ok: false,
+      reason: `Delegation purpose mismatch. Allowed purposes: ${Array.from(purposeSet).join(", ")}.`
+    };
+  }
+
+  const maxTransferAmount = Number(constraints.maxTransferAmount);
+  if (Number.isFinite(maxTransferAmount) && maxTransferAmount > 0 && Number(transferAmount) > maxTransferAmount) {
+    return {
+      ok: false,
+      reason: `Delegation limit exceeded. Max transfer amount is ${maxTransferAmount.toFixed(2)}.`
+    };
+  }
+
+  return { ok: true };
+}
+
 function transferArgsFromIntentArgs(args, originalMessage) {
   const amount = Number(args?.amount);
   const toAccount = String(args?.toAccount || "").trim();
@@ -323,33 +462,56 @@ function draftKeysForUser(userSubOrKeys) {
   return Array.from(new Set(keys));
 }
 
-function getPendingAutomationDraft(userSubOrKeys) {
+async function getPendingAutomationDraft(userSubOrKeys) {
   const keys = draftKeysForUser(userSubOrKeys);
   for (const key of keys) {
-    const record = pendingAutomationDrafts.get(key);
-    if (!record) {
+    try {
+      const persisted = await getTaskContext(key, "automation_draft");
+      if (persisted && typeof persisted === "object") {
+        return { ...persisted, updatedAtMs: Date.now() };
+      }
+    } catch {
+      // Fall through to in-memory lookup.
+    }
+
+    const memoryRecord = pendingAutomationDrafts.get(key);
+    if (!memoryRecord) {
       continue;
     }
-    if (Date.now() - Number(record.updatedAtMs || 0) > AUTOMATION_DRAFT_TTL_MS) {
+    if (Date.now() - Number(memoryRecord.updatedAtMs || 0) > AUTOMATION_DRAFT_TTL_MS) {
       pendingAutomationDrafts.delete(key);
       continue;
     }
-    return record;
+    return memoryRecord;
   }
   return null;
 }
 
-function setPendingAutomationDraft(userSubOrKeys, record) {
+async function setPendingAutomationDraft(userSubOrKeys, record) {
   const keys = draftKeysForUser(userSubOrKeys);
+  const value = { ...record, updatedAtMs: Date.now() };
   for (const key of keys) {
-    pendingAutomationDrafts.set(key, { ...record, updatedAtMs: Date.now() });
+    pendingAutomationDrafts.set(key, value);
+    try {
+      await upsertTaskContext(key, value, {
+        contextType: "automation_draft",
+        ttlSeconds: Math.floor(AUTOMATION_DRAFT_TTL_MS / 1000)
+      });
+    } catch {
+      // In-memory fallback remains active.
+    }
   }
 }
 
-function clearPendingAutomationDraft(userSubOrKeys) {
+async function clearPendingAutomationDraft(userSubOrKeys) {
   const keys = draftKeysForUser(userSubOrKeys);
   for (const key of keys) {
     pendingAutomationDrafts.delete(key);
+    try {
+      await clearTaskContext(key, "automation_draft");
+    } catch {
+      // Ignore clear failures.
+    }
   }
 }
 
@@ -889,6 +1051,7 @@ export async function runAgent(message, options = {}) {
   const draftKeys = [conversationKey, userSub];
   const tokenVerified = Boolean(options.tokenVerified);
   const stepUpVerified = Boolean(options.stepUpVerified);
+  const approvalTicket = String(options.approvalTicket || "").trim();
   const clientTimeZone = options.clientTimeZone || "";
   const clientLocale = options.clientLocale || "";
   const delegation = options.delegation || { idvVerified: false, delegatedOperations: [] };
@@ -907,7 +1070,7 @@ export async function runAgent(message, options = {}) {
   const classified =
     (await classifyIntent(message, context)) || { intent: "general_question", args: {}, confidence: 0 };
   const fallbackIntent = fallbackIntentFromQuestion(message);
-  const pendingAutomation = getPendingAutomationDraft(draftKeys);
+  const pendingAutomation = await getPendingAutomationDraft(draftKeys);
   const intentPayload =
     pendingAutomation
       ? { ...classified, intent: "manage_automations" }
@@ -915,9 +1078,13 @@ export async function runAgent(message, options = {}) {
       ? { ...classified, intent: fallbackIntent }
       : classified;
   const operationKey = operationForIntent(intentPayload.intent);
+  const executionPlan = await buildExecutionPlan(message, context, intentPayload);
+  const plannedSteps = Array.isArray(executionPlan.steps) ? executionPlan.steps.slice(0, AGENT_PLAN_MAX_STEPS) : [];
   const baseDecisionFlow = [
     "Parsed your request.",
     `Detected intent: ${intentPayload.intent}.`,
+    `Planner produced ${plannedSteps.length} step(s) with max budget ${AGENT_PLAN_MAX_STEPS}.`,
+    ...plannedSteps.map((step, index) => `Plan ${index + 1}: ${step.tool} - ${step.purpose}`),
     pendingAutomation ? "Resumed pending automation configuration context." : "No pending automation context.",
     operationKey ? `Mapped intent to operation: ${operationKey}.` : "No privileged operation required."
   ];
@@ -935,6 +1102,24 @@ export async function runAgent(message, options = {}) {
     console.log(
       `[agent-trace] intent=${intentPayload.intent} op=${operationKey || "none"} confidence=${intentPayload.confidence}`
     );
+  }
+
+  if (
+    executionPlan?.needsClarification &&
+    executionPlan?.clarificationQuestion &&
+    intentPayload.intent !== "general_question" &&
+    !pendingAutomation
+  ) {
+    return buildResult({
+      decisionFlow: [...baseDecisionFlow, "Planner requested clarification before execution."],
+      output: executionPlan.clarificationQuestion,
+      transfer: null,
+      riskStatus: "Normal",
+      requiresReauth: false,
+      source: "ollama",
+      model: ollamaModel,
+      baseUrl: ollamaBaseUrl
+    });
   }
 
   const blockedReason = delegationBlock(userInfo, delegation, operationKey);
@@ -987,6 +1172,7 @@ export async function runAgent(message, options = {}) {
         output,
         transfer: null,
         riskStatus: "Normal",
+        riskTier: "Low",
         requiresReauth: false,
         source: "ollama",
         model: ollamaModel,
@@ -994,30 +1180,73 @@ export async function runAgent(message, options = {}) {
       });
     }
 
-    if (parsedTransfer.amount > POLICY.highRiskTransferThreshold && !stepUpVerified) {
+    const riskTier = transferRiskTier(parsedTransfer.amount);
+    const riskStatus = riskTier === "High" ? "High" : "Normal";
+    const delegatedPurposes = Array.isArray(delegation?.constraints?.purposes)
+      ? delegation.constraints.purposes
+      : [];
+    const requestedPurpose = String(
+      intentPayload.args?.purpose ||
+        delegatedPurposes[0] ||
+        delegation?.constraints?.purpose ||
+        "general_assistance"
+    );
+    const delegationConstraintCheck = validateTransferAgainstDelegationConstraints(
+      delegation,
+      parsedTransfer.amount,
+      requestedPurpose
+    );
+    if (!delegationConstraintCheck.ok) {
       await createTransferRecord(userSub, {
         status: "blocked",
         amount: parsedTransfer.amount,
         toAccount: parsedTransfer.toAccount,
-        riskStatus: "High",
+        riskStatus,
+        requiresStepUp: riskTier !== "Low",
+        stepUpVerified,
+        details: { reason: "delegation_constraints", message: delegationConstraintCheck.reason }
+      });
+      return buildResult({
+        decisionFlow: [...baseDecisionFlow, `Transfer blocked by delegation constraints: ${delegationConstraintCheck.reason}`],
+        output: delegationConstraintCheck.reason,
+        transfer: null,
+        riskStatus,
+        riskTier,
+        requiresReauth: false,
+        source: "ollama",
+        model: ollamaModel,
+        baseUrl: ollamaBaseUrl
+      });
+    }
+
+    if (riskTier !== "Low" && !stepUpVerified) {
+      await createTransferRecord(userSub, {
+        status: "blocked",
+        amount: parsedTransfer.amount,
+        toAccount: parsedTransfer.toAccount,
+        riskStatus,
         requiresStepUp: true,
         stepUpVerified,
         details: { reason: "step_up_required" }
       });
       const output = await synthesizeResponse(message, {
         status: "reauth_required",
-        reason: `High-risk transfer (>${POLICY.highRiskTransferThreshold}) requires OneWelcome re-authentication.`
+        reason:
+          riskTier === "High"
+            ? `High-risk transfer (>${POLICY.highRiskTransferThreshold}) requires OneWelcome re-authentication.`
+            : `Medium-risk transfer (>${POLICY.mediumRiskTransferThreshold}) requires OneWelcome re-authentication.`
       });
       return buildResult({
         decisionFlow: [
           ...baseDecisionFlow,
           `Validated amount: ${parsedTransfer.amount}.`,
-          `Risk check: High (threshold ${POLICY.highRiskTransferThreshold}).`,
+          `Risk check: ${riskTier}.`,
           "Step-up authentication required before execution."
         ],
         output,
         transfer: null,
-        riskStatus: "High",
+        riskStatus,
+        riskTier,
         requiresReauth: true,
         reauthUrl: "/auth/login?stepup=1&returnTo=/",
         source: "ollama",
@@ -1026,9 +1255,56 @@ export async function runAgent(message, options = {}) {
       });
     }
 
+    if (OOB_APPROVAL_ENABLED && riskTier === "High") {
+      const verification = await verifyApprovedOperation(userSub, approvalTicket, "high_risk_transfer");
+      const approvedPayload = verification?.approval?.payload || {};
+      const approvalMatchesTransfer =
+        Number(approvedPayload.amount) === Number(parsedTransfer.amount) &&
+        String(approvedPayload.toAccount || "").toLowerCase() === String(parsedTransfer.toAccount || "").toLowerCase();
+      if (!verification.ok || !approvalMatchesTransfer) {
+        const approval = await createOperationApproval(userSub, {
+          approvalType: "high_risk_transfer",
+          reason: "Out-of-band approval required for high-risk transfer.",
+          payload: {
+            amount: parsedTransfer.amount,
+            toAccount: parsedTransfer.toAccount,
+            fromAccount: parsedTransfer.fromAccount || null
+          },
+          ttlSeconds: OOB_APPROVAL_TTL_SECONDS
+        });
+        await createTransferRecord(userSub, {
+          status: "blocked",
+          amount: parsedTransfer.amount,
+          toAccount: parsedTransfer.toAccount,
+          riskStatus,
+          requiresStepUp: true,
+          stepUpVerified,
+          details: { reason: "oob_approval_required", approvalId: approval?.id || null }
+        });
+        return buildResult({
+          decisionFlow: [
+            ...baseDecisionFlow,
+            `Validated amount: ${parsedTransfer.amount}.`,
+            "High-risk transfer requires out-of-band approval."
+          ],
+          output:
+            "Approval required: please approve this high-risk transfer request, then resend the same command.",
+          transfer: null,
+          riskStatus,
+          riskTier,
+          requiresReauth: false,
+          requiresApproval: true,
+          approvalTicket: approval?.id || null,
+          approvalPrompt: "Approve in User Settings > Pending Approvals or via /delegation/approvals/:id/approve.",
+          source: "ollama",
+          model: ollamaModel,
+          baseUrl: ollamaBaseUrl
+        });
+      }
+    }
+
     const rawTransfer = await executeSecureTransfer(parsedTransfer);
     const transfer = JSON.parse(rawTransfer);
-    const riskStatus = parsedTransfer.amount > POLICY.highRiskTransferThreshold ? "High" : "Normal";
 
     const balanceUpdate = await applyTransferAndUpdateBalances(userSub, {
       amount: transfer.amount ?? parsedTransfer.amount,
@@ -1036,9 +1312,12 @@ export async function runAgent(message, options = {}) {
       fromAccount: transfer.fromAccount || parsedTransfer.fromAccount || null,
       transactionId: transfer.transactionId || null,
       riskStatus,
-      requiresStepUp: parsedTransfer.amount > POLICY.highRiskTransferThreshold,
+      requiresStepUp: riskTier !== "Low",
       stepUpVerified,
-      operationSource: "prompt"
+      operationSource: "prompt",
+      delegatedBy: userSub || null,
+      delegationScope: Array.isArray(delegation?.delegatedOperations) ? delegation.delegatedOperations : [],
+      authContext: "user-session"
     });
 
     if (!balanceUpdate.ok) {
@@ -1048,7 +1327,7 @@ export async function runAgent(message, options = {}) {
         amount: transfer.amount ?? parsedTransfer.amount,
         toAccount: transfer.toAccount || parsedTransfer.toAccount,
         riskStatus,
-        requiresStepUp: parsedTransfer.amount > POLICY.highRiskTransferThreshold,
+        requiresStepUp: riskTier !== "Low",
         stepUpVerified,
         details: {
           error: balanceUpdate.message,
@@ -1069,6 +1348,7 @@ export async function runAgent(message, options = {}) {
         output,
         transfer: null,
         riskStatus,
+        riskTier,
         requiresReauth: false,
         source: "ollama",
         model: ollamaModel,
@@ -1082,7 +1362,7 @@ export async function runAgent(message, options = {}) {
       amount: transfer.amount ?? parsedTransfer.amount,
       toAccount: transfer.toAccount || parsedTransfer.toAccount,
       riskStatus,
-      requiresStepUp: parsedTransfer.amount > POLICY.highRiskTransferThreshold,
+      requiresStepUp: riskTier !== "Low",
       stepUpVerified,
       details: transfer
     });
@@ -1107,6 +1387,7 @@ export async function runAgent(message, options = {}) {
       balances: balanceUpdate.balances,
       transactionHistory: updatedHistory,
       riskStatus,
+      riskTier,
       requiresReauth: false,
       source: "ollama",
       model: ollamaModel,
@@ -1192,7 +1473,7 @@ export async function runAgent(message, options = {}) {
       });
     }
     const rules = await listAutomationRules(userSub);
-    const pending = getPendingAutomationDraft(draftKeys);
+    const pending = await getPendingAutomationDraft(draftKeys);
     const parsed = await parseAutomationRequestWithAi(message, {
       intentArgs: intentPayload.args,
       pendingDraft: pending?.draft || null,
@@ -1211,7 +1492,7 @@ export async function runAgent(message, options = {}) {
       requestedAction = "continue_draft";
     }
     if (requestedAction === "cancel") {
-      clearPendingAutomationDraft(draftKeys);
+      await clearPendingAutomationDraft(draftKeys);
       return buildResult({
         decisionFlow: [...baseDecisionFlow, "Cancelled pending automation draft."],
         output: "The operation has been cancelled.",
@@ -1225,7 +1506,7 @@ export async function runAgent(message, options = {}) {
     }
 
     if (requestedAction === "list_rules") {
-      clearPendingAutomationDraft(draftKeys);
+      await clearPendingAutomationDraft(draftKeys);
       const output = await synthesizeResponse(message, {
         status: rules.length ? "ok" : "not_found",
         rules: rules.map((rule) => formatRuleForResponse(rule, { clientTimeZone, clientLocale }))
@@ -1243,7 +1524,7 @@ export async function runAgent(message, options = {}) {
     }
 
     if (requestedAction === "run_rule") {
-      clearPendingAutomationDraft(draftKeys);
+      await clearPendingAutomationDraft(draftKeys);
       const targetRule =
         findRuleByName(rules, parsed?.targetRuleName) ||
         rules.find((rule) => rule.enabled) ||
@@ -1341,7 +1622,7 @@ export async function runAgent(message, options = {}) {
 
     if (mergedMissing.length > 0) {
       const followUpQuestion = formatMissingAutomationQuestion(mergedMissing);
-      setPendingAutomationDraft(draftKeys, {
+      await setPendingAutomationDraft(draftKeys, {
         action: draftAction,
         targetRuleName: parsed?.targetRuleName || pending?.targetRuleName || null,
         draft: mergedDraft
@@ -1365,7 +1646,7 @@ export async function runAgent(message, options = {}) {
         findRuleByName(rules, pending?.targetRuleName) ||
         findRuleByName(rules, mergedDraft.name);
       if (!targetRule) {
-        setPendingAutomationDraft(draftKeys, {
+        await setPendingAutomationDraft(draftKeys, {
           action: "update_rule",
           targetRuleName: parsed?.targetRuleName || pending?.targetRuleName || null,
           draft: mergedDraft
@@ -1399,7 +1680,7 @@ export async function runAgent(message, options = {}) {
         adaptiveConfig: mergedDraft.adaptiveConfig,
         enabled: true
       });
-      clearPendingAutomationDraft(draftKeys);
+      await clearPendingAutomationDraft(draftKeys);
       const output = await synthesizeResponse(message, {
         status: "updated",
         rule: formatRuleForResponse(updatedRule, { clientTimeZone, clientLocale })
@@ -1439,7 +1720,7 @@ export async function runAgent(message, options = {}) {
             adaptiveConfig: finalizedDraft.adaptiveConfig,
             enabled: true
           });
-          clearPendingAutomationDraft(draftKeys);
+          await clearPendingAutomationDraft(draftKeys);
           const output = await synthesizeResponse(message, {
             status: "created",
             rule: formatRuleForResponse(createdRule, { clientTimeZone, clientLocale })
@@ -1464,7 +1745,7 @@ export async function runAgent(message, options = {}) {
         }
 
         if (isNegativeResponse(message)) {
-          clearPendingAutomationDraft(draftKeys);
+          await clearPendingAutomationDraft(draftKeys);
           return buildResult({
             decisionFlow: [...baseDecisionFlow, "User cancelled prompt-based rule creation."],
             output: "Rule creation cancelled.",
@@ -1478,7 +1759,7 @@ export async function runAgent(message, options = {}) {
         }
       }
 
-      setPendingAutomationDraft(draftKeys, {
+      await setPendingAutomationDraft(draftKeys, {
         action: "create_rule",
         stage: "confirm_create",
         targetRuleName: mergedDraft.name || null,
@@ -1501,8 +1782,10 @@ export async function runAgent(message, options = {}) {
     const output = await synthesizeResponse(message, {
       policy: {
         riskLevels: POLICY.riskLevels,
+        mediumRiskThreshold: POLICY.mediumRiskTransferThreshold,
         highRiskThreshold: POLICY.highRiskTransferThreshold,
-        stepUpRequired: true
+        stepUpRequired: true,
+        outOfBandApprovalRequiredForHighRisk: OOB_APPROVAL_ENABLED
       }
     });
     return buildResult({

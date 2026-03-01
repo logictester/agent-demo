@@ -680,6 +680,32 @@
       font-weight: 700;
     }
 
+    .auth-events {
+      margin-top: 12px;
+      display: grid;
+      gap: 8px;
+      min-height: 220px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .auth-event-item {
+      border: 1px solid #d6e4f7;
+      border-radius: 12px;
+      background: #f7faff;
+      padding: 9px 11px;
+      display: grid;
+      gap: 3px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .auth-event-item strong {
+      color: var(--ink);
+      font-size: 0.86rem;
+    }
+
     .session-modal {
       position: fixed;
       inset: 0;
@@ -931,6 +957,19 @@
       </div>
     </section>
 
+    <section class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <h2 style="margin:0;">Authorization Events</h2>
+        <button class="btn btn-edit" onclick="loadAuthorizationEvents(true)"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+      </div>
+      <div id="authorizationEventsList" class="auth-events"></div>
+      <div class="tx-pagination">
+        <button id="authEventsPrevBtn" class="btn btn-edit" onclick="changeAuthorizationEventsPage(-1)"><span class="material-symbols-outlined">chevron_left</span>Prev</button>
+        <span id="authEventsPageLabel" class="tx-page-label">Page 1 of 1</span>
+        <button id="authEventsNextBtn" class="btn btn-edit" onclick="changeAuthorizationEventsPage(1)"><span class="material-symbols-outlined">chevron_right</span>Next</button>
+      </div>
+    </section>
+
   </main>
 
   <section id="settingsPage" class="settings-page hidden">
@@ -949,7 +988,13 @@
           <div class="delegation-actions">
             <button id="idvBtn" class="btn btn-login" onclick="completeIdv()"><span class="material-symbols-outlined">verified_user</span>Complete IDV</button>
           </div>
+          <div class="automation-grid" style="margin-bottom:8px;">
+            <select id="delegationPurposes" multiple title="Select one or many delegation purposes"></select>
+            <input id="delegationExpiry" type="datetime-local" placeholder="Delegation expiry" />
+            <input id="delegationMaxTransfer" type="number" min="1" step="0.01" placeholder="Max transfer amount" />
+          </div>
           <div id="delegationOptions" class="delegation-options"></div>
+          <div id="pendingApprovals" class="delegation-options"></div>
           <div id="delegationStatus" class="delegation-status">Sign in to configure delegation.</div>
           <div style="margin-top:10px; display:flex; justify-content:flex-end;">
             <button id="saveDelegationBtn" class="btn btn-save" onclick="saveDelegation()"><span class="material-symbols-outlined">save</span>Save Delegation</button>
@@ -1062,7 +1107,8 @@ const STORAGE_KEYS = {
   lastResponse: "helio.lastResponse",
   pendingHighRiskTransfer: "helio.pendingHighRiskTransfer",
   stepUpTicket: "helio.stepUpTicket",
-  stepUpTicketExp: "helio.stepUpTicketExp"
+  stepUpTicketExp: "helio.stepUpTicketExp",
+  approvalTicket: "helio.approvalTicket"
 };
 let sessionWarningSeconds = 120;
 let confirmModalResolver = null;
@@ -1077,14 +1123,27 @@ const accountState = {
 };
 const delegationState = {
   options: [],
+  purposeOptions: [],
   idvVerified: false,
   idvVerifiedAt: null,
-  delegatedOperations: []
+  delegatedOperations: [],
+  constraints: {
+    purpose: "general_assistance",
+    purposes: ["general_assistance"],
+    expiresAt: "",
+    maxTransferAmount: ""
+  },
+  pendingApprovals: []
 };
 const txState = {
   items: [],
   page: 1,
   pageSize: 6
+};
+const authEventsState = {
+  items: [],
+  page: 1,
+  pageSize: 5
 };
 const operationsViewState = {
   sourceFilter: "all",
@@ -1306,6 +1365,113 @@ async function refreshRecentActivity() {
   await loadFinancialState();
 }
 
+function renderAuthorizationEvents() {
+  const container = document.getElementById("authorizationEventsList");
+  if (!container) {
+    return;
+  }
+  container.innerHTML = "";
+  container.scrollTop = 0;
+
+  const items = Array.isArray(authEventsState.items) ? authEventsState.items : [];
+  const totalPages = Math.max(1, Math.ceil(items.length / authEventsState.pageSize));
+  authEventsState.page = Math.min(Math.max(authEventsState.page, 1), totalPages);
+  const pageStart = (authEventsState.page - 1) * authEventsState.pageSize;
+  const pageItems = items.slice(pageStart, pageStart + authEventsState.pageSize);
+
+  if (!pageItems.length) {
+    const empty = document.createElement("div");
+    empty.className = "auth-event-item";
+    empty.innerHTML = "<strong>No authorization events yet</strong><div>Authorize and run operations to populate this panel.</div>";
+    container.appendChild(empty);
+  } else {
+    for (const event of pageItems) {
+      const categoryRaw = String(event.category || "authorization_event");
+      const category =
+        categoryRaw === "transfer_authorization"
+          ? "Transfer authorization"
+          : categoryRaw === "out_of_band_approval"
+            ? "Out-of-band approval"
+            : "Authorization event";
+      const statusRaw = String(event.status || "unknown");
+      const status = statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
+      const source = String(event.source || "authorization-engine");
+      const amount = Number(event?.metadata?.amount);
+      const amountLabel = Number.isFinite(amount) ? formatCurrency(amount) : null;
+      const toAccount = String(event?.metadata?.toAccount || "").trim();
+      const reason = String(event.reason || "").trim();
+      const time = formatShortTimestamp(event.timestamp);
+      const detailParts = [];
+      if (amountLabel) {
+        detailParts.push(amountLabel);
+      }
+      if (toAccount) {
+        detailParts.push(`to ${toAccount}`);
+      }
+
+      const row = document.createElement("div");
+      row.className = "auth-event-item";
+      row.innerHTML = `
+        <strong>${category} • ${status}</strong>
+        ${detailParts.length ? `<div>${detailParts.join(" ")}</div>` : ""}
+        ${reason ? `<div>${reason}</div>` : ""}
+        <div style="font-size:0.78rem;">source: ${source}${time ? ` • ${time}` : ""}</div>
+      `;
+      container.appendChild(row);
+    }
+  }
+
+  const label = document.getElementById("authEventsPageLabel");
+  const prevBtn = document.getElementById("authEventsPrevBtn");
+  const nextBtn = document.getElementById("authEventsNextBtn");
+  if (label) {
+    label.textContent = `Page ${authEventsState.page} of ${totalPages}`;
+  }
+  if (prevBtn) {
+    prevBtn.disabled = authEventsState.page <= 1;
+  }
+  if (nextBtn) {
+    nextBtn.disabled = authEventsState.page >= totalPages;
+  }
+}
+
+function changeAuthorizationEventsPage(direction) {
+  const next = authEventsState.page + Number(direction || 0);
+  authEventsState.page = next;
+  renderAuthorizationEvents();
+}
+
+async function loadAuthorizationEvents(resetPage = false) {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    authEventsState.items = [];
+    if (resetPage) {
+      authEventsState.page = 1;
+    }
+    renderAuthorizationEvents();
+    return;
+  }
+
+  try {
+    const res = await fetch("/delegation/events?limit=60", { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to load authorization events");
+    }
+    authEventsState.items = Array.isArray(data.events) ? data.events : [];
+    if (resetPage) {
+      authEventsState.page = 1;
+    }
+    renderAuthorizationEvents();
+  } catch {
+    authEventsState.items = [];
+    if (resetPage) {
+      authEventsState.page = 1;
+    }
+    renderAuthorizationEvents();
+  }
+}
+
 function getPerformedOperations() {
   return (Array.isArray(txState.items) ? txState.items : []).filter((tx) => String(tx.kind || "").toLowerCase() === "transfer");
 }
@@ -1423,6 +1589,9 @@ async function loadFinancialState() {
     applyInteractionStats({ questionsAsked: 0, questionsAnswered: 0, operationsPerformed: 0 });
     renderStats();
     setTransactionHistory([], true);
+    authEventsState.items = [];
+    authEventsState.page = 1;
+    renderAuthorizationEvents();
     return;
   }
 
@@ -1435,6 +1604,7 @@ async function loadFinancialState() {
     applyBalances(data.balances);
     setTransactionHistory(data.transactionHistory, true);
     applyInteractionStats(data.interactionStats);
+    await loadAuthorizationEvents(true);
     if (canManageAutomations()) {
       await loadAutomationRules();
     }
@@ -1442,6 +1612,9 @@ async function loadFinancialState() {
     applyInteractionStats({ questionsAsked: 0, questionsAnswered: 0, operationsPerformed: 0 });
     renderStats();
     setTransactionHistory([], true);
+    authEventsState.items = [];
+    authEventsState.page = 1;
+    renderAuthorizationEvents();
   }
 }
 
@@ -1698,6 +1871,7 @@ function toggleUserMenu(force) {
 function openSettingsPage() {
   toggleUserMenu(false);
   document.getElementById("settingsPage").classList.remove("hidden");
+  loadPendingApprovals();
 }
 
 function closeSettingsPage() {
@@ -1732,6 +1906,71 @@ function renderDelegationOptions() {
 
     row.appendChild(checkbox);
     row.appendChild(textWrap);
+    container.appendChild(row);
+  }
+}
+
+function renderDelegationConstraints() {
+  const purposesEl = document.getElementById("delegationPurposes");
+  const expiryEl = document.getElementById("delegationExpiry");
+  const maxEl = document.getElementById("delegationMaxTransfer");
+  if (purposesEl) {
+    const purposeOptions = delegationState.purposeOptions.length
+      ? delegationState.purposeOptions
+      : [{ key: "general_assistance", label: "General assistance" }];
+    const selectedPurposes = Array.isArray(delegationState.constraints?.purposes)
+      ? delegationState.constraints.purposes
+      : [String(delegationState.constraints?.purpose || "general_assistance")];
+    purposesEl.innerHTML = "";
+    for (const option of purposeOptions) {
+      const node = document.createElement("option");
+      node.value = option.key;
+      node.textContent = option.label;
+      node.selected = selectedPurposes.includes(option.key);
+      purposesEl.appendChild(node);
+    }
+    purposesEl.disabled = !delegationState.idvVerified;
+  }
+  if (expiryEl) {
+    const raw = String(delegationState.constraints?.expiresAt || "").trim();
+    if (!raw) {
+      expiryEl.value = "";
+    } else {
+      const date = new Date(raw);
+      expiryEl.value = Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 16) : "";
+    }
+    expiryEl.disabled = !delegationState.idvVerified;
+  }
+  if (maxEl) {
+    const value = delegationState.constraints?.maxTransferAmount;
+    maxEl.value = value == null || value === "" ? "" : String(value);
+    maxEl.disabled = !delegationState.idvVerified;
+  }
+}
+
+function renderPendingApprovals() {
+  const container = document.getElementById("pendingApprovals");
+  if (!container) {
+    return;
+  }
+  const items = Array.isArray(delegationState.pendingApprovals) ? delegationState.pendingApprovals : [];
+  if (!items.length) {
+    container.innerHTML = "<div class='delegation-status'>No pending high-risk approvals.</div>";
+    return;
+  }
+  container.innerHTML = "<div class='delegation-status'>Pending approvals</div>";
+  for (const approval of items) {
+    const amount = Number(approval?.payload?.amount || 0);
+    const toAccount = String(approval?.payload?.toAccount || "target");
+    const row = document.createElement("div");
+    row.className = "delegation-option";
+    row.innerHTML = `
+      <div>
+        <strong>High-risk transfer approval</strong>
+        <small>${formatCurrency(amount)} to ${toAccount} | expires ${formatRunTimestamp(approval.expiresAt)}</small>
+      </div>
+      <button class="btn btn-save" onclick="approvePendingOperation('${approval.id}')"><span class="material-symbols-outlined">check_circle</span>Approve</button>
+    `;
     container.appendChild(row);
   }
 }
@@ -1792,7 +2031,16 @@ function renderDelegationStatus(messageOverride) {
 
   const names = delegatedOperationNames(delegationState.delegatedOperations);
   const grants = names.length ? names.join(", ") : "None selected";
-  statusEl.textContent = `Delegated operations: ${grants}`;
+  const purposes = Array.isArray(delegationState.constraints?.purposes)
+    ? delegationState.constraints.purposes
+    : [String(delegationState.constraints?.purpose || "general_assistance")];
+  const purpose = purposes.length ? purposes.join(", ") : "general_assistance";
+  const expiry = delegationState.constraints?.expiresAt ? formatRunTimestamp(delegationState.constraints.expiresAt) : "none";
+  const maxAmount =
+    delegationState.constraints?.maxTransferAmount != null && delegationState.constraints?.maxTransferAmount !== ""
+      ? formatCurrency(Number(delegationState.constraints.maxTransferAmount))
+      : "none";
+  statusEl.textContent = `Delegated operations: ${grants}. Purpose: ${purpose}. Expires: ${expiry}. Max transfer: ${maxAmount}.`;
 }
 
 function canManageAutomations() {
@@ -2329,7 +2577,9 @@ async function loadDelegationOptions() {
     const res = await fetch("/delegation/options");
     const data = await res.json();
     delegationState.options = Array.isArray(data.options) ? data.options : [];
+    delegationState.purposeOptions = Array.isArray(data.purposeOptions) ? data.purposeOptions : [];
     renderDelegationOptions();
+    renderDelegationConstraints();
   } catch {
     renderDelegationStatus("Unable to load delegation options.");
   }
@@ -2341,7 +2591,16 @@ async function loadDelegationStatus() {
     delegationState.idvVerified = false;
     delegationState.idvVerifiedAt = null;
     delegationState.delegatedOperations = [];
+    delegationState.constraints = {
+      purpose: "general_assistance",
+      purposes: ["general_assistance"],
+      expiresAt: "",
+      maxTransferAmount: ""
+    };
+    delegationState.pendingApprovals = [];
     renderDelegationOptions();
+    renderDelegationConstraints();
+    renderPendingApprovals();
     renderDelegationStatus();
     updateAutomationUiState();
     loadAutomationRules();
@@ -2360,8 +2619,22 @@ async function loadDelegationStatus() {
     delegationState.delegatedOperations = Array.isArray(data.delegatedOperations)
       ? data.delegatedOperations
       : [];
+    delegationState.constraints =
+      data.constraints && typeof data.constraints === "object"
+        ? {
+            purpose: data.constraints.purpose || "general_assistance",
+            purposes: Array.isArray(data.constraints.purposes) && data.constraints.purposes.length
+              ? data.constraints.purposes
+              : [data.constraints.purpose || "general_assistance"],
+            expiresAt: data.constraints.expiresAt || "",
+            maxTransferAmount:
+              data.constraints.maxTransferAmount == null ? "" : Number(data.constraints.maxTransferAmount)
+          }
+        : { purpose: "general_assistance", purposes: ["general_assistance"], expiresAt: "", maxTransferAmount: "" };
     renderDelegationOptions();
+    renderDelegationConstraints();
     renderDelegationStatus();
+    await loadPendingApprovals();
     updateAutomationUiState();
     loadAutomationRules();
   } catch (error) {
@@ -2370,6 +2643,45 @@ async function loadDelegationStatus() {
       return;
     }
     renderDelegationStatus(`Delegation status error: ${error.message}`);
+  }
+}
+
+async function loadPendingApprovals() {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    delegationState.pendingApprovals = [];
+    renderPendingApprovals();
+    return;
+  }
+  try {
+    const res = await fetch("/delegation/approvals", { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to load pending approvals");
+    }
+    delegationState.pendingApprovals = Array.isArray(data.approvals) ? data.approvals : [];
+    renderPendingApprovals();
+  } catch {
+    delegationState.pendingApprovals = [];
+    renderPendingApprovals();
+  }
+}
+
+async function approvePendingOperation(approvalId) {
+  try {
+    const res = await fetch(`/delegation/approvals/${encodeURIComponent(approvalId)}/approve`, {
+      method: "POST",
+      headers: getAuthHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to approve operation");
+    }
+    renderDelegationStatus("Approval submitted. Re-run the operation prompt to execute.");
+    await loadPendingApprovals();
+    await loadAuthorizationEvents(true);
+  } catch (error) {
+    renderDelegationStatus(`Approval error: ${error.message}`);
   }
 }
 
@@ -2406,11 +2718,30 @@ async function saveDelegation() {
     document.querySelectorAll("#delegationOptions input[type='checkbox']:checked")
   ).map((node) => node.value);
 
+  const selectedPurposeNodes = Array.from(document.getElementById("delegationPurposes")?.selectedOptions || []);
+  const purposes = selectedPurposeNodes
+    .map((node) => String(node.value || "").trim())
+    .filter(Boolean);
+  const normalizedPurposes = purposes.length ? purposes : ["general_assistance"];
+  const purpose = normalizedPurposes[0];
+  const expiryRaw = String(document.getElementById("delegationExpiry")?.value || "").trim();
+  const maxTransferRaw = document.getElementById("delegationMaxTransfer")?.value;
+  const maxTransferAmount = maxTransferRaw ? Number(maxTransferRaw) : null;
+  const constraints = {
+    purpose,
+    purposes: normalizedPurposes,
+    expiresAt: expiryRaw ? new Date(expiryRaw).toISOString() : null,
+    maxTransferAmount:
+      Number.isFinite(Number(maxTransferAmount)) && Number(maxTransferAmount) > 0
+        ? Number(maxTransferAmount)
+        : null
+  };
+
   try {
     const res = await fetch("/delegation/grants", {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ operations: selected })
+      body: JSON.stringify({ operations: selected, constraints })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -2422,8 +2753,23 @@ async function saveDelegation() {
     delegationState.delegatedOperations = Array.isArray(data.delegatedOperations)
       ? data.delegatedOperations
       : [];
+    delegationState.constraints =
+      data.constraints && typeof data.constraints === "object"
+        ? {
+            purpose: data.constraints.purpose || "general_assistance",
+            purposes: Array.isArray(data.constraints.purposes) && data.constraints.purposes.length
+              ? data.constraints.purposes
+              : [data.constraints.purpose || "general_assistance"],
+            expiresAt: data.constraints.expiresAt || "",
+            maxTransferAmount:
+              data.constraints.maxTransferAmount == null ? "" : Number(data.constraints.maxTransferAmount)
+          }
+        : delegationState.constraints;
     renderDelegationOptions();
+    renderDelegationConstraints();
     renderDelegationStatus("Delegation updated successfully.");
+    await loadPendingApprovals();
+    await loadAuthorizationEvents(true);
     updateAutomationUiState();
     loadAutomationRules();
     setTimeout(() => renderDelegationStatus(), 2500);
@@ -2436,6 +2782,7 @@ updateAuthBadge();
 renderStats();
 renderQuestionHistoryDropdown();
 setTransactionHistory([], true);
+renderAuthorizationEvents();
 restoreLastUiState();
 handlePostReauthReturn();
 loadDelegationOptions();
@@ -2461,6 +2808,7 @@ function loginAgainFullAuth() {
   localStorage.removeItem(STORAGE_KEYS.stepUpTicket);
   localStorage.removeItem(STORAGE_KEYS.stepUpTicketExp);
   localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
+  localStorage.removeItem(STORAGE_KEYS.approvalTicket);
   window.location.href = "/auth/login?reauth=1&returnTo=/";
 }
 
@@ -2500,6 +2848,15 @@ function renderAgentResponse(payload, isError) {
     const modelInfo = payload.model ? ` | model: ${payload.model}` : "";
     meta.textContent = `source: ${payload.source}${modelInfo}`;
     responseEl.appendChild(meta);
+  }
+
+  if (!isError && payload.riskTier) {
+    const riskMeta = document.createElement("div");
+    riskMeta.style.marginTop = "6px";
+    riskMeta.style.fontSize = "0.8rem";
+    riskMeta.style.color = "#4f6685";
+    riskMeta.textContent = `risk tier: ${payload.riskTier}`;
+    responseEl.appendChild(riskMeta);
   }
 
   if (!isError && Array.isArray(payload.decisionFlow) && payload.decisionFlow.length) {
@@ -2542,6 +2899,51 @@ function renderAgentResponse(payload, isError) {
     responseEl.appendChild(wrapper);
   }
 
+  if (!isError && payload.requiresApproval && payload.approvalTicket) {
+    localStorage.setItem(STORAGE_KEYS.approvalTicket, String(payload.approvalTicket));
+    const wrapper = document.createElement("div");
+    wrapper.style.marginTop = "12px";
+    wrapper.style.display = "flex";
+    wrapper.style.gap = "8px";
+    wrapper.style.flexWrap = "wrap";
+
+    const approveButton = document.createElement("button");
+    approveButton.className = "btn btn-save";
+    approveButton.innerHTML = '<span class="material-symbols-outlined">check_circle</span>Approve Now';
+    approveButton.onclick = async () => {
+      try {
+        approveButton.disabled = true;
+        const res = await fetch(`/delegation/approvals/${encodeURIComponent(payload.approvalTicket)}/approve`, {
+          method: "POST",
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Approval failed");
+        }
+        const currentMessage = localStorage.getItem(STORAGE_KEYS.lastMessage) || document.getElementById("msg").value || "";
+        await loadPendingApprovals();
+        send(currentMessage);
+      } catch (error) {
+        renderAgentResponse({ output: `Error: ${error.message}` }, true);
+      } finally {
+        approveButton.disabled = false;
+      }
+    };
+
+    const openSettingsBtn = document.createElement("button");
+    openSettingsBtn.className = "btn btn-edit";
+    openSettingsBtn.innerHTML = '<span class="material-symbols-outlined">settings</span>Open User Settings';
+    openSettingsBtn.onclick = () => {
+      openSettingsPage();
+      loadPendingApprovals();
+    };
+
+    wrapper.appendChild(approveButton);
+    wrapper.appendChild(openSettingsBtn);
+    responseEl.appendChild(wrapper);
+  }
+
   localStorage.setItem(STORAGE_KEYS.lastResponse, payload.output || "");
 }
 
@@ -2566,6 +2968,7 @@ async function send(messageOverride) {
 
   responseEl.classList.remove("error");
   responseEl.innerText = "Thinking...";
+  localStorage.setItem(STORAGE_KEYS.lastMessage, message);
   storeQuestionHistory(message);
 
   try {
@@ -2589,6 +2992,10 @@ async function send(messageOverride) {
     const stepUpTicket = getValidStepUpTicket();
     if (stepUpTicket) {
       headers["X-Step-Up-Ticket"] = stepUpTicket;
+    }
+    const approvalTicket = localStorage.getItem(STORAGE_KEYS.approvalTicket);
+    if (approvalTicket) {
+      headers["X-Approval-Ticket"] = approvalTicket;
     }
 
     const res = await fetch("/agent", {
@@ -2617,16 +3024,22 @@ async function send(messageOverride) {
       localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
       localStorage.removeItem(STORAGE_KEYS.stepUpTicket);
       localStorage.removeItem(STORAGE_KEYS.stepUpTicketExp);
+      localStorage.removeItem(STORAGE_KEYS.approvalTicket);
+    }
+    if (!data.requiresApproval && data.intent !== "transfer_funds") {
+      localStorage.removeItem(STORAGE_KEYS.approvalTicket);
     }
 
     if (data.intent === "manage_automations" && canManageAutomations()) {
       await loadAutomationRules();
     }
+    await loadAuthorizationEvents(true);
 
     renderAgentResponse(data, false);
     messageInputEl.value = "";
   } catch (error) {
     renderAgentResponse({ output: `Error: ${error.message}` }, true);
+    await loadAuthorizationEvents(true);
     messageInputEl.value = "";
   }
 }

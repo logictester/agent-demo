@@ -8,6 +8,9 @@ It demonstrates:
 - OIDC login/logout and token refresh with OneWelcome.
 - Step-up re-authentication for high-risk actions.
 - IDV-based delegation with OneWelcome IO using OneWelcome IDV services.
+- Risk-tiered transfer authorization (`Low` / `Medium` / `High`).
+- Purpose/time/amount-bound delegation constraints.
+- Out-of-band approval for high-risk transfers.
 - Prompt-driven banking actions (transfers, identity, history, policy Q&A).
 - Prompt-driven automation rule creation/editing/execution.
 - Scheduled automation with machine-to-machine (M2M) credentials.
@@ -29,12 +32,13 @@ It demonstrates:
 ### UI capabilities
 - Account stats (available, savings, risk, questions asked/answered, operations performed).
 - Recent activity list with pagination + refresh button.
+- Authorization Events panel with refresh + pagination (transfer policy and OOB approval trail).
 - Performed operations modal with filters:
   - prompt vs automation
   - automation mode: on-demand vs scheduled
 - Prompt history dropdown (last 10 questions).
 - Session expiry/warning modal with refresh or full re-login.
-- Settings panel for delegation + scheduler configuration.
+- Settings panel for delegation + scheduler configuration, including multi-select delegation purposes and time-limited constraints.
 - Rule enable/disable slider in both settings and main page.
 - Rule run/edit/delete actions in settings and main page.
 - Decision flow visibility (“How it reached this”) for assistant + automation runs.
@@ -183,11 +187,13 @@ Key tables in `backend/db/init.sql`:
 - `users`: canonical user record by `sub`.
 - `auth_sessions`: login/logout + token expiry metadata.
 - `delegations`: IDV status + delegated operation scope.
+- `operation_approvals`: out-of-band approval requests and approval lifecycle.
 - `idv_sessions`: IDV attempts and outcomes.
 - `transfers`: transfer lifecycle records (blocked/failed/completed).
 - `account_balances`: available/savings balances.
 - `account_transactions`: immutable transfer ledger + metadata.
 - `agent_interactions`: question/answer + operation telemetry.
+- `agent_task_contexts`: persisted short-lived workflow context for follow-up prompts and multi-step continuity.
 - `transfer_automation_rules`: scheduler rules, enable flag, next/last run, adaptive config.
 
 ---
@@ -207,12 +213,18 @@ Key tables in `backend/db/init.sql`:
 - `GET /agent/state`
 
 ### Delegation routes
-- `GET /delegation/options`
+- `GET /delegation/options` (returns `options` and `purposeOptions`)
 - `GET /delegation/status`
 - `POST /delegation/idv/start`
 - `GET /delegation/idv/callback`
 - `POST /delegation/idv/callback`
 - `POST /delegation/grants`
+- `GET /delegation/approvals`
+- `POST /delegation/approvals`
+- `GET /delegation/approvals/:id`
+- `POST /delegation/approvals/:id/approve`
+- `POST /delegation/approvals/:id/verify`
+- `GET /delegation/events`
 
 ### Automation routes
 - `GET /automation/rules`
@@ -332,9 +344,14 @@ ONEWELCOME_LOGOUT_URL=https://<your-onewelcome-domain>/oauth/v1/logout
 OLLAMA_BASE_URL=http://<ollama-host>:11434
 OLLAMA_MODEL=llama3.1:8b
 AGENT_DEBUG=false
+AGENT_PLAN_MAX_STEPS=6
 
 STEP_UP_SECRET=<long-random-secret>
 STEP_UP_TTL_SECONDS=300
+RISK_MEDIUM_THRESHOLD=100
+RISK_HIGH_THRESHOLD=500
+OOB_APPROVAL_ENABLED=true
+OOB_APPROVAL_TTL_SECONDS=600
 
 MONOKEE_IDV_START_URL=https://<onewelcome-io-flow-start-url>
 MONOKEE_IDV_STATE_SECRET=<long-random-secret>
@@ -402,8 +419,9 @@ In responses, inspect:
 
 ## 15) Operational Notes and Current Boundaries
 
-- Prompt-based draft context for automation creation is **in-memory** with TTL and keyed by user/conversation; it resets on server restart.
+- Prompt-based draft context for automation creation is persisted in `agent_task_contexts` with TTL and keyed by user/conversation context.
 - Persisted artifacts (balances, transactions, delegation, rules, stats) live in Postgres and survive refresh/restart.
+- Delegation constraints support purpose-bound, multi-purpose (`purposes`), expiry-bound, and max-transfer-bound authorization.
 - Scheduled runs use M2M context and do not require active browser session.
 - Deterministic safeguards can override AI “execute” decisions when policy constraints are violated.
 

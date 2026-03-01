@@ -157,6 +157,7 @@ router.get("/logout", (req, res) => {
         localStorage.removeItem("helio.stepUpTicket");
         localStorage.removeItem("helio.stepUpTicketExp");
         localStorage.removeItem("helio.pendingHighRiskTransfer");
+        localStorage.removeItem("helio.approvalTicket");
         window.location.href = "/";
       </script>
     `);
@@ -191,6 +192,7 @@ router.get("/logout/callback", (req, res) => {
       localStorage.removeItem("helio.stepUpTicket");
       localStorage.removeItem("helio.stepUpTicketExp");
       localStorage.removeItem("helio.pendingHighRiskTransfer");
+      localStorage.removeItem("helio.approvalTicket");
       window.location.href = "/";
     </script>
   `);

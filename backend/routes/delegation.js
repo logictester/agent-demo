@@ -2,14 +2,21 @@ import express from "express";
 import crypto from "crypto";
 import { getUserInfo } from "../services/onewelcome.js";
 import {
+  approveOperationById,
   completeIdvSession,
+  createOperationApproval,
   createIdvSession,
   getDelegation,
+  getOperationApprovalById,
   getIdvSession,
   getDelegationOptions,
+  getDelegationPurposeOptions,
+  listAuthorizationEvents,
+  listPendingApprovals,
   markIdvFailed,
   markIdvVerified,
-  setDelegatedOperations
+  setDelegatedOperations,
+  verifyApprovedOperation
 } from "../services/delegation.js";
 
 const router = express.Router();
@@ -103,7 +110,10 @@ function buildReturnUrl(returnTo, status) {
 }
 
 router.get("/options", (req, res) => {
-  return res.json({ options: getDelegationOptions() });
+  return res.json({
+    options: getDelegationOptions(),
+    purposeOptions: getDelegationPurposeOptions()
+  });
 });
 
 router.get("/status", async (req, res) => {
@@ -116,7 +126,8 @@ router.get("/status", async (req, res) => {
   return res.json({
     idvVerified: delegation.idvVerified,
     idvVerifiedAt: delegation.idvVerifiedAt,
-    delegatedOperations: delegation.delegatedOperations
+    delegatedOperations: delegation.delegatedOperations,
+    constraints: delegation.constraints || {}
   });
 });
 
@@ -224,14 +235,15 @@ router.post("/grants", async (req, res) => {
     return res.status(401).json({ error: "Authentication required" });
   }
 
-  const { operations } = req.body ?? {};
+  const { operations, constraints } = req.body ?? {};
   try {
-    const delegation = await setDelegatedOperations(user.sub, operations);
+    const delegation = await setDelegatedOperations(user.sub, operations, constraints || {});
     return res.json({
       message: "Delegation updated.",
       idvVerified: delegation.idvVerified,
       idvVerifiedAt: delegation.idvVerifiedAt,
-      delegatedOperations: delegation.delegatedOperations
+      delegatedOperations: delegation.delegatedOperations,
+      constraints: delegation.constraints || {}
     });
   } catch (error) {
     if (error?.message === "IDV_REQUIRED") {
@@ -239,6 +251,79 @@ router.post("/grants", async (req, res) => {
     }
     return res.status(500).json({ error: "Failed to update delegation." });
   }
+});
+
+router.post("/approvals", async (req, res) => {
+  const { user } = await resolveUser(req);
+  if (!user?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+
+  const body = req.body ?? {};
+  const created = await createOperationApproval(user.sub, {
+    approvalType: body.approvalType || "high_risk_transfer",
+    reason: body.reason || null,
+    payload: body.payload || {},
+    ttlSeconds: body.ttlSeconds || null
+  });
+  if (!created) {
+    return res.status(500).json({ error: "Failed to create approval request" });
+  }
+  return res.status(201).json({ approval: created });
+});
+
+router.get("/approvals/:id", async (req, res) => {
+  const { user } = await resolveUser(req);
+  if (!user?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+
+  const approval = await getOperationApprovalById(req.params.id);
+  if (!approval || approval.sub !== user.sub) {
+    return res.status(404).json({ error: "Approval not found" });
+  }
+  return res.json({ approval });
+});
+
+router.get("/approvals", async (req, res) => {
+  const { user } = await resolveUser(req);
+  if (!user?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  const approvals = await listPendingApprovals(user.sub, 30);
+  return res.json({ approvals });
+});
+
+router.get("/events", async (req, res) => {
+  const { user } = await resolveUser(req);
+  if (!user?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  const limit = Number(req.query.limit) || 40;
+  const events = await listAuthorizationEvents(user.sub, limit);
+  return res.json({ events });
+});
+
+router.post("/approvals/:id/approve", async (req, res) => {
+  const { user } = await resolveUser(req);
+  if (!user?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  const approval = await approveOperationById(user.sub, req.params.id);
+  if (!approval) {
+    return res.status(404).json({ error: "Approval not found" });
+  }
+  return res.json({ approval });
+});
+
+router.post("/approvals/:id/verify", async (req, res) => {
+  const { user } = await resolveUser(req);
+  if (!user?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  const expectedType = String(req.body?.expectedType || "").trim() || null;
+  const verification = await verifyApprovedOperation(user.sub, req.params.id, expectedType);
+  return res.json(verification);
 });
 
 export default router;

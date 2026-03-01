@@ -32,14 +32,51 @@ const ALLOWED_OPERATIONS = [
   }
 ];
 
+const DELEGATION_PURPOSE_OPTIONS = [
+  {
+    key: "general_assistance",
+    label: "General assistance",
+    description: "Allow broad assistant support operations."
+  },
+  {
+    key: "savings_optimization",
+    label: "Savings optimization",
+    description: "Allow actions focused on growing savings."
+  },
+  {
+    key: "cashflow_management",
+    label: "Cashflow management",
+    description: "Allow automated balance and liquidity operations."
+  },
+  {
+    key: "bill_pay_support",
+    label: "Bill pay support",
+    description: "Allow assistant actions for payment support scenarios."
+  },
+  {
+    key: "security_review",
+    label: "Security review",
+    description: "Allow security and account activity investigation actions."
+  }
+];
+
 let accountSchemaReady = null;
 let interactionSchemaReady = null;
+let delegationSchemaReady = null;
+
+const DEFAULT_DELEGATION_CONSTRAINTS = {
+  purpose: "general_assistance",
+  purposes: ["general_assistance"],
+  expiresAt: null,
+  maxTransferAmount: null
+};
 
 function fallbackDelegation() {
   return {
     idvVerified: false,
     idvVerifiedAt: null,
-    delegatedOperations: []
+    delegatedOperations: [],
+    constraints: { ...DEFAULT_DELEGATION_CONSTRAINTS }
   };
 }
 
@@ -77,6 +114,54 @@ function safeJsonArray(value) {
 function normalizeAmount(value) {
   const num = Number(value);
   return Number.isFinite(num) ? Number(num.toFixed(2)) : 0;
+}
+
+function safeJsonObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeDelegationConstraints(input = {}) {
+  const raw = safeJsonObject(input);
+  const allowedPurposes = new Set(DELEGATION_PURPOSE_OPTIONS.map((item) => item.key));
+  const explicitPurposes = Array.isArray(raw.purposes)
+    ? raw.purposes.map((item) => String(item || "").trim()).filter((item) => allowedPurposes.has(item))
+    : [];
+  const legacyPurpose = String(raw.purpose || "").trim();
+  const purposes = Array.from(
+    new Set(
+      explicitPurposes.length
+        ? explicitPurposes
+        : legacyPurpose && allowedPurposes.has(legacyPurpose)
+          ? [legacyPurpose]
+          : DEFAULT_DELEGATION_CONSTRAINTS.purposes
+    )
+  );
+  const purpose = String(purposes[0] || DEFAULT_DELEGATION_CONSTRAINTS.purpose);
+  const expiresAtRaw = String(raw.expiresAt || "").trim();
+  const expiresAtDate = expiresAtRaw ? new Date(expiresAtRaw) : null;
+  const expiresAt =
+    expiresAtDate && Number.isFinite(expiresAtDate.getTime()) ? expiresAtDate.toISOString() : null;
+  const maxTransferAmountRaw = raw.maxTransferAmount;
+  const maxTransferAmountNum = Number(maxTransferAmountRaw);
+  const maxTransferAmount =
+    Number.isFinite(maxTransferAmountNum) && maxTransferAmountNum > 0
+      ? Number(maxTransferAmountNum.toFixed(2))
+      : null;
+
+  return {
+    purpose,
+    purposes,
+    expiresAt,
+    maxTransferAmount
+  };
 }
 
 function resolveInternalAccountName(rawAccount, fallback = null) {
@@ -167,6 +252,59 @@ async function ensureInteractionSchema() {
   await interactionSchemaReady;
 }
 
+async function ensureDelegationSchema() {
+  if (!getDbPool()) {
+    return;
+  }
+
+  if (!delegationSchemaReady) {
+    delegationSchemaReady = (async () => {
+      await dbQuery(`
+        CREATE TABLE IF NOT EXISTS delegations (
+          user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          idv_verified BOOLEAN NOT NULL DEFAULT FALSE,
+          idv_verified_at TIMESTAMPTZ,
+          delegated_operations JSONB NOT NULL DEFAULT '[]'::jsonb,
+          delegation_constraints JSONB NOT NULL DEFAULT '{}'::jsonb,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      await dbQuery(`
+        ALTER TABLE delegations
+        ADD COLUMN IF NOT EXISTS delegation_constraints JSONB NOT NULL DEFAULT '{}'::jsonb
+      `);
+
+      await dbQuery(`
+        CREATE TABLE IF NOT EXISTS operation_approvals (
+          id UUID PRIMARY KEY,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          approval_type TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          reason TEXT,
+          payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          expires_at TIMESTAMPTZ,
+          resolved_at TIMESTAMPTZ,
+          resolved_by_sub TEXT
+        )
+      `);
+      await dbQuery(`
+        CREATE INDEX IF NOT EXISTS idx_operation_approvals_user_status
+        ON operation_approvals(user_id, status, created_at DESC)
+      `);
+      await dbQuery(`
+        CREATE INDEX IF NOT EXISTS idx_operation_approvals_expires_at
+        ON operation_approvals(expires_at)
+      `);
+    })().catch((error) => {
+      delegationSchemaReady = null;
+      throw error;
+    });
+  }
+
+  await delegationSchemaReady;
+}
+
 async function ensureUserAccountState(userId) {
   await ensureAccountSchema();
   await dbQuery(
@@ -202,6 +340,10 @@ function mapHistoryRow(row) {
 
 export function getDelegationOptions() {
   return ALLOWED_OPERATIONS;
+}
+
+export function getDelegationPurposeOptions() {
+  return DELEGATION_PURPOSE_OPTIONS;
 }
 
 export async function upsertUserByClaims(claims = {}) {
@@ -291,10 +433,11 @@ export async function getDelegation(sub) {
   if (!normalizedSub || !getDbPool()) {
     return fallbackDelegation();
   }
+  await ensureDelegationSchema();
 
   const result = await dbQuery(
     `
-      SELECT d.idv_verified, d.idv_verified_at, d.delegated_operations
+      SELECT d.idv_verified, d.idv_verified_at, d.delegated_operations, d.delegation_constraints
       FROM delegations d
       JOIN users u ON u.id = d.user_id
       WHERE u.sub = $1
@@ -311,7 +454,8 @@ export async function getDelegation(sub) {
   return {
     idvVerified: Boolean(row.idv_verified),
     idvVerifiedAt: row.idv_verified_at || null,
-    delegatedOperations: safeJsonArray(row.delegated_operations)
+    delegatedOperations: safeJsonArray(row.delegated_operations),
+    constraints: normalizeDelegationConstraints(row.delegation_constraints)
   };
 }
 
@@ -325,14 +469,16 @@ export async function markIdvVerified(sub) {
     return {
       idvVerified: true,
       idvVerifiedAt: new Date().toISOString(),
-      delegatedOperations: []
+      delegatedOperations: [],
+      constraints: { ...DEFAULT_DELEGATION_CONSTRAINTS }
     };
   }
+  await ensureDelegationSchema();
 
   await dbQuery(
     `
-      INSERT INTO delegations (user_id, idv_verified, idv_verified_at, delegated_operations, updated_at)
-      VALUES ($1, TRUE, NOW(), '[]'::jsonb, NOW())
+      INSERT INTO delegations (user_id, idv_verified, idv_verified_at, delegated_operations, delegation_constraints, updated_at)
+      VALUES ($1, TRUE, NOW(), '[]'::jsonb, '{}'::jsonb, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET
         idv_verified = TRUE,
@@ -353,11 +499,12 @@ export async function markIdvFailed(sub) {
   if (!user?.id || !getDbPool()) {
     return fallbackDelegation();
   }
+  await ensureDelegationSchema();
 
   await dbQuery(
     `
-      INSERT INTO delegations (user_id, idv_verified, idv_verified_at, delegated_operations, updated_at)
-      VALUES ($1, FALSE, NULL, '[]'::jsonb, NOW())
+      INSERT INTO delegations (user_id, idv_verified, idv_verified_at, delegated_operations, delegation_constraints, updated_at)
+      VALUES ($1, FALSE, NULL, '[]'::jsonb, '{}'::jsonb, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET
         idv_verified = FALSE,
@@ -369,7 +516,7 @@ export async function markIdvFailed(sub) {
   return getDelegation(normalizedSub);
 }
 
-export async function setDelegatedOperations(sub, requestedOperations) {
+export async function setDelegatedOperations(sub, requestedOperations, constraintsInput = {}) {
   const normalizedSub = normalizeSub(sub);
   if (!normalizedSub) {
     throw new Error("Missing subject");
@@ -384,6 +531,7 @@ export async function setDelegatedOperations(sub, requestedOperations) {
   if (!user?.id || !getDbPool()) {
     return current;
   }
+  await ensureDelegationSchema();
 
   const allowed = new Set(ALLOWED_OPERATIONS.map((op) => op.key));
   const delegatedOperations = Array.from(
@@ -394,14 +542,16 @@ export async function setDelegatedOperations(sub, requestedOperations) {
     )
   );
 
+  const constraints = normalizeDelegationConstraints(constraintsInput);
   await dbQuery(
     `
       UPDATE delegations
       SET delegated_operations = $2::jsonb,
+          delegation_constraints = $3::jsonb,
           updated_at = NOW()
       WHERE user_id = $1
     `,
-    [user.id, JSON.stringify(delegatedOperations)]
+    [user.id, JSON.stringify(delegatedOperations), JSON.stringify(constraints)]
   );
 
   return getDelegation(normalizedSub);
@@ -417,6 +567,260 @@ export async function isOperationDelegated(sub, operationKey) {
     return false;
   }
   return record.delegatedOperations.includes(operationKey);
+}
+
+function mapApprovalRow(row) {
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    sub: row.sub,
+    approvalType: row.approval_type,
+    status: row.status,
+    reason: row.reason || null,
+    payload: row.payload || {},
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+    resolvedAt: row.resolved_at ? new Date(row.resolved_at).toISOString() : null,
+    resolvedBySub: row.resolved_by_sub || null
+  };
+}
+
+export async function createOperationApproval(sub, approval = {}) {
+  const normalizedSub = normalizeSub(sub);
+  if (!normalizedSub || !getDbPool()) {
+    return null;
+  }
+  await ensureDelegationSchema();
+  const user = await upsertUserByClaims({ sub: normalizedSub });
+  if (!user?.id) {
+    return null;
+  }
+  const ttlSeconds = Math.max(30, Number(approval.ttlSeconds) || 600);
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+  const id = crypto.randomUUID();
+
+  await dbQuery(
+    `
+      INSERT INTO operation_approvals (
+        id, user_id, approval_type, status, reason, payload, expires_at
+      )
+      VALUES ($1, $2, $3, 'pending', $4, $5::jsonb, $6)
+    `,
+    [
+      id,
+      user.id,
+      String(approval.approvalType || "high_risk_transfer"),
+      approval.reason ? String(approval.reason) : null,
+      JSON.stringify(approval.payload || {}),
+      expiresAt
+    ]
+  );
+
+  const created = await getOperationApprovalById(id);
+  return created;
+}
+
+export async function getOperationApprovalById(approvalId) {
+  if (!approvalId || !getDbPool()) {
+    return null;
+  }
+  await ensureDelegationSchema();
+  const result = await dbQuery(
+    `
+      SELECT a.*, u.sub
+      FROM operation_approvals a
+      JOIN users u ON u.id = a.user_id
+      WHERE a.id = $1
+      LIMIT 1
+    `,
+    [String(approvalId)]
+  );
+  return mapApprovalRow(result.rows[0] || null);
+}
+
+export async function approveOperationById(sub, approvalId) {
+  const normalizedSub = normalizeSub(sub);
+  if (!normalizedSub || !approvalId || !getDbPool()) {
+    return null;
+  }
+  await ensureDelegationSchema();
+  const approval = await getOperationApprovalById(approvalId);
+  if (!approval || approval.sub !== normalizedSub) {
+    return null;
+  }
+  if (approval.status !== "pending") {
+    return approval;
+  }
+  if (approval.expiresAt && new Date(approval.expiresAt).getTime() <= Date.now()) {
+    await dbQuery(
+      `
+        UPDATE operation_approvals
+        SET status = 'expired',
+            resolved_at = NOW(),
+            resolved_by_sub = $2
+        WHERE id = $1
+      `,
+      [String(approvalId), normalizedSub]
+    );
+    return getOperationApprovalById(approvalId);
+  }
+
+  await dbQuery(
+    `
+      UPDATE operation_approvals
+      SET status = 'approved',
+          resolved_at = NOW(),
+          resolved_by_sub = $2
+      WHERE id = $1
+    `,
+    [String(approvalId), normalizedSub]
+  );
+  return getOperationApprovalById(approvalId);
+}
+
+export async function verifyApprovedOperation(sub, approvalId, expectedType = null) {
+  const normalizedSub = normalizeSub(sub);
+  if (!normalizedSub || !approvalId) {
+    return { ok: false, reason: "missing_approval" };
+  }
+  const approval = await getOperationApprovalById(approvalId);
+  if (!approval || approval.sub !== normalizedSub) {
+    return { ok: false, reason: "approval_not_found" };
+  }
+  if (expectedType && approval.approvalType !== expectedType) {
+    return { ok: false, reason: "approval_type_mismatch" };
+  }
+  if (approval.expiresAt && new Date(approval.expiresAt).getTime() <= Date.now()) {
+    return { ok: false, reason: "approval_expired" };
+  }
+  if (approval.status !== "approved") {
+    return { ok: false, reason: "approval_not_approved" };
+  }
+  return { ok: true, approval };
+}
+
+export async function listPendingApprovals(sub, limit = 20) {
+  const normalizedSub = normalizeSub(sub);
+  if (!normalizedSub || !getDbPool()) {
+    return [];
+  }
+  await ensureDelegationSchema();
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const result = await dbQuery(
+    `
+      SELECT a.*, u.sub
+      FROM operation_approvals a
+      JOIN users u ON u.id = a.user_id
+      WHERE u.sub = $1
+        AND a.status = 'pending'
+        AND (a.expires_at IS NULL OR a.expires_at > NOW())
+      ORDER BY a.created_at DESC
+      LIMIT $2
+    `,
+    [normalizedSub, safeLimit]
+  );
+  return result.rows.map(mapApprovalRow);
+}
+
+export async function listAuthorizationEvents(sub, limit = 40) {
+  const normalizedSub = normalizeSub(sub);
+  if (!normalizedSub || !getDbPool()) {
+    return [];
+  }
+  await ensureDelegationSchema();
+  const user = await upsertUserByClaims({ sub: normalizedSub });
+  if (!user?.id) {
+    return [];
+  }
+  const safeLimit = Math.min(Math.max(Number(limit) || 40, 1), 100);
+
+  const transferResult = await dbQuery(
+    `
+      SELECT
+        id,
+        status,
+        amount,
+        to_account,
+        risk_status,
+        requires_step_up,
+        step_up_verified,
+        details,
+        created_at
+      FROM transfers
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `,
+    [user.id, safeLimit]
+  );
+
+  const approvalResult = await dbQuery(
+    `
+      SELECT
+        id,
+        approval_type,
+        status,
+        reason,
+        payload,
+        created_at,
+        expires_at,
+        resolved_at
+      FROM operation_approvals
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `,
+    [user.id, safeLimit]
+  );
+
+  const transferEvents = transferResult.rows.map((row) => {
+    const details = safeJsonObject(row.details);
+    const reason =
+      details?.message ||
+      details?.reason ||
+      details?.error ||
+      (row.status === "completed" ? "Transfer completed." : null);
+    return {
+      id: `transfer:${row.id}`,
+      category: "transfer_authorization",
+      status: String(row.status || "unknown"),
+      source: "transfer-policy-engine",
+      reason: reason ? String(reason) : null,
+      timestamp: row.created_at ? new Date(row.created_at).toISOString() : null,
+      metadata: {
+        amount: row.amount == null ? null : Number(row.amount),
+        toAccount: row.to_account || null,
+        riskStatus: row.risk_status || null,
+        requiresStepUp: Boolean(row.requires_step_up),
+        stepUpVerified: Boolean(row.step_up_verified)
+      }
+    };
+  });
+
+  const approvalEvents = approvalResult.rows.map((row) => ({
+    id: `approval:${row.id}`,
+    category: "out_of_band_approval",
+    status: String(row.status || "unknown"),
+    source: "approval-workflow",
+    reason: row.reason || null,
+    timestamp: row.resolved_at || row.created_at ? new Date(row.resolved_at || row.created_at).toISOString() : null,
+    metadata: {
+      approvalType: row.approval_type || null,
+      payload: row.payload || {},
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+      expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null
+    }
+  }));
+
+  return [...transferEvents, ...approvalEvents]
+    .sort((a, b) => {
+      const at = new Date(a.timestamp || 0).getTime();
+      const bt = new Date(b.timestamp || 0).getTime();
+      return bt - at;
+    })
+    .slice(0, safeLimit);
 }
 
 export async function createIdvSession(sub, metadata = {}) {

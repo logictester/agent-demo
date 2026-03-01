@@ -31,6 +31,11 @@ function extractClientTimeZone(headerValue) {
   return value;
 }
 
+function extractApprovalTicket(headerValue) {
+  const value = typeof headerValue === "string" ? headerValue.trim() : "";
+  return value || "";
+}
+
 router.post("/", async (req, res) => {
   const { message } = req.body ?? {};
 
@@ -43,6 +48,7 @@ router.post("/", async (req, res) => {
     let stepUpVerified = false;
     const accessToken = extractBearerToken(req.headers.authorization);
     const idToken = extractIdToken(req.headers["x-id-token"]);
+    const approvalTicket = extractApprovalTicket(req.headers["x-approval-ticket"]);
     const clientTimeZone = extractClientTimeZone(req.headers["x-client-timezone"]);
     const clientLocale = typeof req.headers["x-client-locale"] === "string" ? req.headers["x-client-locale"] : "";
     let userInfo = null;
@@ -78,6 +84,7 @@ router.post("/", async (req, res) => {
       delegation,
       userSub: userInfo?.sub || null,
       conversationKey,
+      approvalTicket,
       clientTimeZone,
       clientLocale
     });
@@ -103,8 +110,12 @@ router.post("/", async (req, res) => {
       output: result.output || "",
       transfer: result.transfer || null,
       riskStatus: result.riskStatus || "Normal",
+      riskTier: result.riskTier || null,
       requiresReauth: Boolean(result.requiresReauth),
       reauthUrl: result.reauthUrl || null,
+      requiresApproval: Boolean(result.requiresApproval),
+      approvalTicket: result.approvalTicket || null,
+      approvalPrompt: result.approvalPrompt || null,
       balances: result.balances || updatedFinancialState?.balances || financialState?.balances || null,
       transactionHistory:
         result.transactionHistory || updatedFinancialState?.transactionHistory || financialState?.transactionHistory || [],

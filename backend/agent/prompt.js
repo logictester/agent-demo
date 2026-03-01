@@ -1,6 +1,7 @@
 export const POLICY = {
-  highRiskTransferThreshold: 100,
-  riskLevels: ["Normal", "High"]
+  mediumRiskTransferThreshold: Number(process.env.RISK_MEDIUM_THRESHOLD) || 100,
+  highRiskTransferThreshold: Number(process.env.RISK_HIGH_THRESHOLD) || 500,
+  riskLevels: ["Low", "Medium", "High"]
 };
 
 export const CAPABILITIES = [
