@@ -1,0 +1,17 @@
+{
+  "name": "ciam-ai-ollama-demo",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "axios": "^1.6.8",
+    "langchain": "^0.1.36",
+    "@langchain/community": "^0.0.31",
+    "pg": "^8.11.0",
+    "uuid": "^9.0.1",
+    "cors": "^2.8.5"
+  }
+}

@@ -1,0 +1,2681 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Helio Bank AI Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-top: #f2f8ff;
+      --bg-bottom: #d8ebff;
+      --surface: #ffffff;
+      --ink: #0f223d;
+      --muted: #4f6685;
+      --primary: #1456d8;
+      --primary-strong: #0f46b3;
+      --accent: #07b89c;
+      --danger: #b32045;
+      --ring: rgba(20, 86, 216, 0.2);
+      --shadow: 0 20px 40px rgba(15, 34, 61, 0.12);
+      --radius-lg: 24px;
+      --radius-md: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Manrope", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 20%, rgba(7, 184, 156, 0.16), transparent 35%),
+        radial-gradient(circle at 90% 0%, rgba(20, 86, 216, 0.18), transparent 38%),
+        linear-gradient(165deg, var(--bg-top), var(--bg-bottom));
+      overflow-x: hidden;
+    }
+
+    .shell {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 18px 40px;
+      display: grid;
+      gap: 18px;
+      animation: enter 0.7s ease-out both;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .brand {
+      font-family: "Space Grotesk", sans-serif;
+      letter-spacing: 0.2px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      display: inline-flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .logo-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow: 0 0 0 6px rgba(20, 86, 216, 0.12);
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      position: relative;
+    }
+
+    .status-pill {
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      background: rgba(7, 184, 156, 0.16);
+      color: #0c6d5e;
+    }
+
+    .status-pill.offline {
+      background: rgba(179, 32, 69, 0.12);
+      color: var(--danger);
+    }
+
+    .user-menu-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .user-menu-button .chev {
+      font-size: 0.75rem;
+      color: #fff;
+    }
+
+    .user-menu-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: min(280px, 92vw);
+      background: #fff;
+      border: 1px solid #d6e4f7;
+      border-radius: 16px;
+      box-shadow: 0 14px 30px rgba(15, 34, 61, 0.16);
+      padding: 14px;
+      z-index: 10;
+      display: none;
+      max-height: 76vh;
+      overflow: hidden;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .user-menu-panel.open {
+      display: flex;
+    }
+
+    .menu-item {
+      width: 100%;
+      text-align: center;
+      margin-top: 8px;
+      justify-content: center;
+    }
+
+    .user-menu-content {
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .user-menu-footer {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #d6e4f7;
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .user-menu-footer .btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .settings-page {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      background: rgba(15, 34, 61, 0.38);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 72px 18px 24px;
+      overflow: auto;
+    }
+
+    .settings-wrap {
+      width: min(1100px, 100%);
+    }
+
+    .settings-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1fr;
+    }
+
+    .settings-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .menu-title {
+      margin: 0 0 8px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.05rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 240px;
+      height: 240px;
+      right: -50px;
+      top: -60px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(7, 184, 156, 0.22), transparent 65%);
+      pointer-events: none;
+    }
+
+    .hero {
+      height: 420px;
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      max-width: 52ch;
+      font-size: 0.9rem;
+      line-height: 1.35;
+    }
+
+    .stat-row {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .stat {
+      border-radius: var(--radius-md);
+      padding: 10px;
+      background: linear-gradient(160deg, #f8fbff, #eef5ff);
+      display: flex;
+      flex-direction: column;
+      min-height: 72px;
+    }
+
+    .stat.clickable {
+      cursor: pointer;
+    }
+
+    .stat.clickable:hover {
+      box-shadow: inset 0 0 0 1px #c2d7f3;
+    }
+
+    .stat-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      margin-top: auto;
+      font-size: 0.98rem;
+      font-weight: 800;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      min-height: 40px;
+      font-weight: 800;
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      line-height: 1;
+    }
+
+    .btn .material-symbols-outlined,
+    .user-menu-button .material-symbols-outlined {
+      font-size: 18px;
+      margin-right: 6px;
+      font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 20;
+    }
+
+    .btn-login {
+      background: #1456d8;
+    }
+
+    .btn-edit {
+      background: #64748b;
+    }
+
+    .btn-delete {
+      background: #b32045;
+    }
+
+    .btn-save {
+      background: #128a4a;
+    }
+
+    .btn-cancel {
+      background: #6b7280;
+    }
+
+    .assistant-card h2 {
+      margin: 0 0 12px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.2rem;
+    }
+
+    .delegation-note {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-bottom: 10px;
+    }
+
+    .delegation-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 10px 0 12px;
+    }
+
+    .delegation-options {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0 12px;
+    }
+
+    .delegation-option {
+      border: 1px solid #cfdbed;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #f8fbff;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .delegation-option small {
+      display: block;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .delegation-status {
+      border-radius: 10px;
+      background: #f5f9ff;
+      border: 1px solid #d6e4f7;
+      color: #163252;
+      padding: 10px 12px;
+      min-height: 44px;
+    }
+
+    .automation-section {
+      margin-top: 14px;
+      border-top: 1px solid #d6e4f7;
+      padding-top: 12px;
+    }
+
+    .automation-title {
+      margin: 0 0 8px;
+      font-weight: 800;
+      color: #173b66;
+      font-size: 0.95rem;
+    }
+
+    .automation-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .automation-grid input,
+    .automation-grid select {
+      border: 1px solid #cfdbed;
+      border-radius: 10px;
+      padding: 9px 10px;
+      font: inherit;
+      color: var(--ink);
+      background: #fff;
+      width: 100%;
+    }
+
+    .automation-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .automation-rules {
+      margin-top: 10px;
+      border: 1px solid #d6e4f7;
+      background: #f8fbff;
+      border-radius: 10px;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .automation-rule-item {
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid #dce8f8;
+      padding: 8px;
+      font-size: 0.84rem;
+      color: #204468;
+    }
+
+    .rule-toggle-row {
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .rule-toggle-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #335a84;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 42px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: #c2cbd8;
+      transition: 0.2s;
+      border-radius: 999px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      top: 3px;
+      background-color: #fff;
+      transition: 0.2s;
+      border-radius: 50%;
+    }
+
+    .switch input:checked + .slider {
+      background-color: #128a4a;
+    }
+
+    .switch input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
+    .automation-status {
+      margin-top: 8px;
+      font-size: 0.84rem;
+      color: #335a84;
+      min-height: 18px;
+    }
+
+    .automation-run-details {
+      margin-top: 8px;
+      border: 1px solid #d6e4f7;
+      background: #f5f9ff;
+      border-radius: 10px;
+      padding: 10px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .automation-run-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #204468;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+    }
+
+    .agent-automation-section {
+      margin-top: 12px;
+      border-top: 1px solid #d6e4f7;
+      padding-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .prompt-hints {
+      border: 1px solid #d6e4f7;
+      background: #f8fbff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      display: grid;
+      gap: 4px;
+      font-size: 0.83rem;
+      color: #335a84;
+    }
+
+    .prompt-hints strong {
+      color: #204468;
+    }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px auto;
+      gap: 10px;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    .input-row input {
+      min-width: 0;
+      width: 100%;
+      border: 1px solid #cfdbed;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--ink);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .input-row input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px var(--ring);
+    }
+
+    .history-select {
+      width: 220px;
+      border: 1px solid #cfdbed;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--ink);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .response {
+      margin-top: 14px;
+      min-height: 130px;
+      max-height: 280px;
+      overflow: auto;
+      border-radius: 14px;
+      background: #f5f9ff;
+      border: 1px solid #d6e4f7;
+      padding: 14px;
+      white-space: pre-wrap;
+      color: #163252;
+      line-height: 1.45;
+    }
+
+    .response.error {
+      color: var(--danger);
+      background: #fff4f7;
+      border-color: #f3ced9;
+    }
+
+    .flow-box {
+      margin-top: 10px;
+      border-top: 1px dashed #c8d9f2;
+      padding-top: 10px;
+    }
+
+    .flow-title {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: #3f5f86;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      margin-bottom: 6px;
+    }
+
+    .flow-step {
+      font-size: 0.86rem;
+      color: #355679;
+      margin: 4px 0;
+      line-height: 1.35;
+    }
+
+    .side-card h3 {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1rem;
+    }
+
+    .side-card {
+      display: flex;
+      flex-direction: column;
+      height: 420px;
+      min-height: 420px;
+    }
+
+    .tx {
+      margin-top: 12px;
+      display: grid;
+      gap: 8px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .tx-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f7faff;
+      font-size: 0.92rem;
+    }
+
+    .tx-item span:last-child {
+      font-weight: 800;
+    }
+
+    .tx-pagination {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .tx-page-label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .session-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 34, 61, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 16px;
+    }
+
+    .session-modal.open {
+      display: flex;
+    }
+
+    .session-modal-card {
+      width: min(460px, 100%);
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid #d6e4f7;
+      box-shadow: 0 18px 36px rgba(15, 34, 61, 0.2);
+      padding: 18px;
+    }
+
+    .session-modal-card h3 {
+      margin: 0 0 8px;
+      font-family: "Space Grotesk", sans-serif;
+    }
+
+    .session-modal-message {
+      margin: 0 0 14px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .session-modal-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .operations-filters {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      margin: 8px 0 12px;
+      align-items: center;
+    }
+
+    .operations-filters select {
+      border: 1px solid #cfdbed;
+      border-radius: 10px;
+      padding: 9px 10px;
+      font: inherit;
+      color: var(--ink);
+      background: #fff;
+      width: 100%;
+    }
+
+    .operations-list {
+      max-height: 340px;
+      overflow: auto;
+      border: 1px solid #d6e4f7;
+      border-radius: 10px;
+      background: #f8fbff;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .operations-item {
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid #dce8f8;
+      padding: 8px 10px;
+      font-size: 0.84rem;
+      color: #204468;
+      display: grid;
+      gap: 2px;
+    }
+
+    @keyframes enter {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stat-row {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-wrap: wrap;
+      }
+
+      .side-card {
+        height: 420px;
+        min-height: 420px;
+      }
+
+      .hero {
+        height: 420px;
+        min-height: 420px;
+      }
+
+      .input-row {
+        grid-template-columns: 1fr;
+      }
+
+      .history-select {
+        width: 100%;
+      }
+
+      .automation-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .settings-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo-dot"></span>
+        Helio Bank | AI Demo
+      </div>
+      <div class="top-actions">
+        <button id="userMenuButton" class="user-menu-button btn btn-edit" onclick="toggleUserMenu()">
+          <span class="material-symbols-outlined">account_circle</span>
+          <span id="userDisplayName">Guest User</span>
+          <span class="chev">▼</span>
+        </button>
+        <div id="userMenuPanel" class="user-menu-panel">
+          <h3 class="menu-title">Account Menu</h3>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+            <span id="authStatus" class="status-pill offline">Not Signed In</span>
+          </div>
+          <button class="menu-item btn btn-edit" onclick="openSettingsPage()">
+            <span class="material-symbols-outlined">settings</span>Settings
+          </button>
+          <div class="user-menu-footer">
+            <button id="authActionBtn" class="btn btn-login" onclick="authAction()"><span class="material-symbols-outlined">login</span>Login with OneWelcome</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="card hero">
+        <h1>Banking assistant built for secure customer operations</h1>
+        <p class="subtitle">
+          Demo flow: authenticate via OneWelcome, then run AI-assisted support and transaction requests.
+          Designed for stakeholder demos and pilot conversations.
+          <br>
+          The agent is based on Llama 3.1 and hosted on Ollama, Model 3.1:8b. 
+        </p>
+        <div class="stat-row">
+          <div class="stat">
+            <div class="stat-label">Available Balance</div>
+            <div id="availableBalanceValue" class="stat-value">$24,982.14</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Savings Account</div>
+            <div id="savingsBalanceValue" class="stat-value">$7,410.00</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Risk Status</div>
+            <div id="riskStatusValue" class="stat-value">Normal</div>
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat">
+            <div class="stat-label">Questions Asked</div>
+            <div id="questionsAskedValue" class="stat-value">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Questions Answered</div>
+            <div id="questionsAnsweredValue" class="stat-value">0</div>
+          </div>
+          <div class="stat clickable" id="operationsPerformedStat" onclick="openPerformedOperations()">
+            <div class="stat-label">Operations Performed</div>
+            <div id="operationsPerformedValue" class="stat-value">0</div>
+          </div>
+        </div>
+      </article>
+
+      <aside class="card side-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <h3>Recent Activity</h3>
+          <button class="btn btn-edit" onclick="refreshRecentActivity()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+        </div>
+        <div id="recentActivityList" class="tx"></div>
+        <div class="tx-pagination">
+          <button id="txPrevBtn" class="btn btn-edit" onclick="changeTxPage(-1)"><span class="material-symbols-outlined">chevron_left</span>Prev</button>
+          <span id="txPageLabel" class="tx-page-label">Page 1 of 1</span>
+          <button id="txNextBtn" class="btn btn-edit" onclick="changeTxPage(1)"><span class="material-symbols-outlined">chevron_right</span>Next</button>
+        </div>
+      </aside>
+    </section>
+
+    <section class="card assistant-card">
+      <h2>AI Banking Agent</h2>
+      <div class="input-row">
+        <input id="msg" placeholder="Try: transfer 50 to savings account" />
+        <select id="questionHistorySelect" class="history-select" onchange="applyQuestionFromHistory()">
+          <option value="">Recent questions</option>
+        </select>
+        <button class="btn btn-save" onclick="send()"><span class="material-symbols-outlined">send</span>Send</button>
+      </div>
+      <div class="prompt-hints">
+        <strong>Automation Prompt Hints</strong>
+        <div>• Create: "Schedule a rule to transfer 500 from available to savings once a week when balance is above 15000."</div>
+        <div>• Edit: "Edit my weekly savings rule and change transfer amount to 650."</div>
+        <div>• Adaptive: "If balance goes below 18000, lower transfer to 200; below 16000 lower to 100."</div>
+        <div>• Run/List: "Run my weekly savings rule now." / "List my automation rules."</div>
+      </div>
+      <div id="response" class="response">Response will appear here.</div>
+      <div style="margin-top:8px; display:flex; justify-content:flex-end;">
+        <button class="btn btn-cancel" onclick="clearAgentResponse()"><span class="material-symbols-outlined">delete_sweep</span>Clear Response</button>
+      </div>
+      <div class="agent-automation-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <h3 class="automation-title" style="margin:0;">AI Automations</h3>
+          <div class="rule-toggle-row" style="margin:0;">
+            <span class="rule-toggle-label">Enabled only</span>
+            <label class="switch">
+              <input id="enabledOnlyFilterAgent" type="checkbox" onchange="setAutomationEnabledFilter(this.checked)" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        <div id="automationStatusAgent" class="automation-status"></div>
+        <div id="automationRunDetailsAgent" class="automation-run-details hidden"></div>
+        <div id="automationRulesAgent" class="automation-rules"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <section id="settingsPage" class="settings-page hidden">
+    <div class="settings-wrap">
+    <div class="settings-card">
+      <div class="settings-header">
+        <h2 class="menu-title" style="margin:0;">User Settings</h2>
+        <button class="btn btn-cancel" onclick="closeSettingsPage()"><span class="material-symbols-outlined">close</span>Close</button>
+      </div>
+      <div id="delegationNote" class="delegation-note">
+        Complete IDV first, then choose what operations the agent is allowed to perform on your behalf.
+      </div>
+      <div class="settings-grid">
+        <div class="settings-card">
+          <h3 class="menu-title" style="margin:0 0 8px;">Delegation</h3>
+          <div class="delegation-actions">
+            <button id="idvBtn" class="btn btn-login" onclick="completeIdv()"><span class="material-symbols-outlined">verified_user</span>Complete IDV</button>
+          </div>
+          <div id="delegationOptions" class="delegation-options"></div>
+          <div id="delegationStatus" class="delegation-status">Sign in to configure delegation.</div>
+          <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+            <button id="saveDelegationBtn" class="btn btn-save" onclick="saveDelegation()"><span class="material-symbols-outlined">save</span>Save Delegation</button>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 8px;">
+            <h3 class="menu-title" style="margin:0;">Scheduler Configuration</h3>
+            <div class="rule-toggle-row" style="margin:0;">
+              <span class="rule-toggle-label">Enabled only</span>
+              <label class="switch">
+                <input id="enabledOnlyFilterSettings" type="checkbox" onchange="setAutomationEnabledFilter(this.checked)" />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="automation-grid">
+            <input id="autoRuleName" type="text" placeholder="Rule name" value="" />
+            <input id="autoTransferAmount" type="number" min="1" step="0.01" placeholder="Transfer amount" />
+            <input id="autoMinBalance" type="number" min="0" step="0.01" placeholder="Min available balance" />
+            <select id="autoMode">
+              <option value="scheduled">Scheduled automation</option>
+              <option value="on_demand">On-demand rule</option>
+            </select>
+            <select id="autoSourceAccount">
+              <option value="available">From available</option>
+              <option value="savings">From savings</option>
+            </select>
+            <select id="autoDestinationAccount">
+              <option value="savings">To savings</option>
+              <option value="available">To available</option>
+            </select>
+            <select id="autoScheduleType" onchange="updateScheduleFieldsVisibility()">
+              <option value="hourly">Every hour</option>
+              <option value="daily">Every day</option>
+              <option value="weekly_n_times">N times per week</option>
+              <option value="custom_interval">Custom interval</option>
+              <option value="specific_dates">Specific dates</option>
+            </select>
+            <div id="scheduleIntervalWrap">
+              <input id="autoIntervalMinutes" type="number" min="1" step="1" value="1440" placeholder="Interval minutes" />
+            </div>
+            <div id="scheduleWeeklyWrap" class="hidden">
+              <input id="autoTimesPerWeek" type="number" min="1" max="7" step="1" value="3" placeholder="Times per week" />
+            </div>
+            <div id="scheduleDatesWrap" class="hidden" style="grid-column: 1 / -1;">
+              <input id="autoSpecificDates" type="text" placeholder="Specific dates (comma-separated ISO datetimes)" />
+            </div>
+          </div>
+          <div class="automation-actions">
+            <button id="saveAutomationBtn" class="btn btn-save" onclick="saveAutomationRule()"><span class="material-symbols-outlined">save</span>Save Rule</button>
+            <button id="cancelEditAutomationBtn" class="btn btn-cancel hidden" onclick="cancelAutomationEdit()"><span class="material-symbols-outlined">cancel</span>Cancel Edit</button>
+          </div>
+          <div id="automationStatus" class="automation-status"></div>
+          <div id="automationRunDetails" class="automation-run-details hidden"></div>
+          <div id="automationRules" class="automation-rules"></div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <div id="sessionModal" class="session-modal" role="dialog" aria-modal="true" aria-labelledby="sessionModalTitle">
+    <div class="session-modal-card">
+      <h3 id="sessionModalTitle">Session status</h3>
+      <p id="sessionModalMessage" class="session-modal-message"></p>
+      <div class="session-modal-actions">
+        <button id="sessionRefreshBtn" class="btn btn-save" onclick="refreshSession()"><span class="material-symbols-outlined">autorenew</span>Continue session</button>
+        <button id="sessionLoginBtn" class="btn btn-login" onclick="loginAgainFullAuth()"><span class="material-symbols-outlined">login</span>Login again</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="operationsModal" class="session-modal" role="dialog" aria-modal="true" aria-labelledby="operationsModalTitle">
+    <div class="session-modal-card">
+      <h3 id="operationsModalTitle">Performed Operations</h3>
+      <div class="operations-filters">
+        <select id="operationSourceFilter" onchange="renderPerformedOperationsList()">
+          <option value="all">All sources</option>
+          <option value="prompt">Prompt</option>
+          <option value="automation">Automation</option>
+        </select>
+        <select id="operationAutomationFilter" onchange="renderPerformedOperationsList()">
+          <option value="all">All automation types</option>
+          <option value="on_demand">On-demand</option>
+          <option value="scheduled">Scheduled</option>
+        </select>
+        <button class="btn btn-cancel" onclick="closePerformedOperations()"><span class="material-symbols-outlined">close</span>Close</button>
+      </div>
+      <div id="operationsList" class="operations-list"></div>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="session-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+    <div class="session-modal-card">
+      <h3 id="confirmModalTitle">Confirm Action</h3>
+      <p id="confirmModalMessage" class="session-modal-message"></p>
+      <div class="session-modal-actions">
+        <button class="btn btn-cancel" onclick="resolveConfirmModal(false)"><span class="material-symbols-outlined">close</span>Cancel</button>
+        <button class="btn btn-delete" onclick="resolveConfirmModal(true)"><span class="material-symbols-outlined">check</span>Confirm</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const STORAGE_KEYS = {
+  lastMessage: "helio.lastMessage",
+  questionHistory: "helio.questionHistory",
+  lastResponse: "helio.lastResponse",
+  pendingHighRiskTransfer: "helio.pendingHighRiskTransfer",
+  stepUpTicket: "helio.stepUpTicket",
+  stepUpTicketExp: "helio.stepUpTicketExp"
+};
+let sessionWarningSeconds = 120;
+let confirmModalResolver = null;
+
+const accountState = {
+  availableBalance: 24982.14,
+  savingsBalance: 7410.0,
+  riskStatus: "Normal",
+  questionsAsked: 0,
+  questionsAnswered: 0,
+  operationsPerformed: 0
+};
+const delegationState = {
+  options: [],
+  idvVerified: false,
+  idvVerifiedAt: null,
+  delegatedOperations: []
+};
+const txState = {
+  items: [],
+  page: 1,
+  pageSize: 6
+};
+const operationsViewState = {
+  sourceFilter: "all",
+  automationFilter: "all"
+};
+const automationState = {
+  rules: [],
+  editingRuleId: null,
+  runningRuleId: null,
+  enabledOnlyFilter: false
+};
+let userMenuOpen = false;
+
+function formatCurrency(amount) {
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD"
+  });
+}
+
+function renderStats() {
+  document.getElementById("availableBalanceValue").textContent = formatCurrency(
+    accountState.availableBalance
+  );
+  document.getElementById("savingsBalanceValue").textContent = formatCurrency(
+    accountState.savingsBalance
+  );
+  document.getElementById("riskStatusValue").textContent = accountState.riskStatus;
+  document.getElementById("questionsAskedValue").textContent = String(accountState.questionsAsked || 0);
+  document.getElementById("questionsAnsweredValue").textContent = String(accountState.questionsAnswered || 0);
+  document.getElementById("operationsPerformedValue").textContent = String(
+    accountState.operationsPerformed || 0
+  );
+}
+
+function applyInteractionStats(stats) {
+  if (!stats || typeof stats !== "object") {
+    return;
+  }
+  accountState.questionsAsked = Number(stats.questionsAsked) || 0;
+  accountState.questionsAnswered = Number(stats.questionsAnswered) || 0;
+  accountState.operationsPerformed = Number(stats.operationsPerformed) || 0;
+  renderStats();
+}
+
+function readQuestionHistory() {
+  const raw = localStorage.getItem(STORAGE_KEYS.questionHistory);
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  } catch {
+    return [];
+  }
+}
+
+function renderQuestionHistoryDropdown() {
+  const select = document.getElementById("questionHistorySelect");
+  const history = readQuestionHistory();
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = history.length ? "Recent questions" : "No recent questions";
+  select.appendChild(placeholder);
+  select.value = "";
+
+  for (const question of history) {
+    const option = document.createElement("option");
+    option.value = question;
+    option.textContent = question;
+    select.appendChild(option);
+  }
+  select.disabled = history.length === 0;
+}
+
+function applyQuestionFromHistory() {
+  const select = document.getElementById("questionHistorySelect");
+  const value = String(select.value || "").trim();
+  if (!value) {
+    return;
+  }
+  document.getElementById("msg").value = value;
+}
+
+function storeQuestionHistory(question) {
+  const normalized = String(question || "").trim();
+  if (!normalized) {
+    return;
+  }
+  const previous = readQuestionHistory().filter((item) => item !== normalized);
+  const next = [normalized, ...previous].slice(0, 10);
+  localStorage.setItem(STORAGE_KEYS.questionHistory, JSON.stringify(next));
+  renderQuestionHistoryDropdown();
+}
+
+function formatShortTimestamp(isoString) {
+  if (!isoString) {
+    return "";
+  }
+  const date = new Date(isoString);
+  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+function formatRunTimestamp(isoString) {
+  if (!isoString) {
+    return "Not scheduled";
+  }
+  return formatShortTimestamp(isoString);
+}
+
+function getOperationSource(tx) {
+  const metadata = tx?.metadata && typeof tx.metadata === "object" ? tx.metadata : {};
+  const source = String(metadata.operationSource || "").toLowerCase();
+  if (source === "automation") {
+    return "automation";
+  }
+  if (source === "prompt") {
+    return "prompt";
+  }
+  if (metadata.automationRuleId || metadata.automated) {
+    return "automation";
+  }
+  return "prompt";
+}
+
+function getAutomationExecutionType(tx) {
+  const metadata = tx?.metadata && typeof tx.metadata === "object" ? tx.metadata : {};
+  const mode = String(metadata.automationExecutionType || "").toLowerCase();
+  if (mode === "scheduled" || mode === "on_demand") {
+    return mode;
+  }
+  if (metadata.automated) {
+    return metadata.scheduled ? "scheduled" : "on_demand";
+  }
+  return null;
+}
+
+function applyBalances(balances) {
+  if (!balances || typeof balances !== "object") {
+    return;
+  }
+  if (Number.isFinite(Number(balances.availableBalance))) {
+    accountState.availableBalance = Number(balances.availableBalance);
+  }
+  if (Number.isFinite(Number(balances.savingsBalance))) {
+    accountState.savingsBalance = Number(balances.savingsBalance);
+  }
+  renderStats();
+}
+
+function renderTransactionHistoryPage() {
+  const container = document.getElementById("recentActivityList");
+  container.innerHTML = "";
+  container.scrollTop = 0;
+
+  const items = Array.isArray(txState.items) ? txState.items : [];
+  const totalPages = Math.max(1, Math.ceil(items.length / txState.pageSize));
+  txState.page = Math.min(Math.max(txState.page, 1), totalPages);
+  const pageStart = (txState.page - 1) * txState.pageSize;
+  const pageItems = items.slice(pageStart, pageStart + txState.pageSize);
+
+  if (!pageItems.length) {
+    const empty = document.createElement("div");
+    empty.className = "tx-item";
+    empty.innerHTML = "<span>No activity yet</span><span></span>";
+    container.appendChild(empty);
+  } else {
+    for (const tx of pageItems) {
+      const row = document.createElement("div");
+      row.className = "tx-item";
+      const amount = Number(tx.amount);
+      const isOutflow = String(tx.fromAccount || "").toLowerCase() === "available";
+      const signed = Number.isFinite(amount) ? `${isOutflow ? "-" : "+"}${formatCurrency(amount)}` : "";
+      const label = tx.description || tx.kind || "Transaction";
+      const time = formatShortTimestamp(tx.timestamp);
+      const source = getOperationSource(tx);
+      const automationType = getAutomationExecutionType(tx);
+      const sourceLabel =
+        source === "automation"
+          ? `Automation${automationType ? ` • ${automationType === "scheduled" ? "Scheduled" : "On-demand"}` : ""}`
+          : "Prompt";
+      row.innerHTML = `<span>${label}${time ? ` <small style=\"color:#4f6685;\">(${time})</small>` : ""} <small style=\"color:#1456d8;\">[${sourceLabel}]</small></span><span>${signed}</span>`;
+      container.appendChild(row);
+    }
+  }
+
+  const label = document.getElementById("txPageLabel");
+  const prevBtn = document.getElementById("txPrevBtn");
+  const nextBtn = document.getElementById("txNextBtn");
+  label.textContent = `Page ${txState.page} of ${totalPages}`;
+  prevBtn.disabled = txState.page <= 1;
+  nextBtn.disabled = txState.page >= totalPages;
+}
+
+function setTransactionHistory(history, resetPage = true) {
+  txState.items = Array.isArray(history) ? history : [];
+  if (resetPage) {
+    txState.page = 1;
+  }
+  renderTransactionHistoryPage();
+  renderPerformedOperationsList();
+}
+
+function changeTxPage(direction) {
+  const next = txState.page + Number(direction || 0);
+  txState.page = next;
+  renderTransactionHistoryPage();
+}
+
+async function refreshRecentActivity() {
+  await loadFinancialState();
+}
+
+function getPerformedOperations() {
+  return (Array.isArray(txState.items) ? txState.items : []).filter((tx) => String(tx.kind || "").toLowerCase() === "transfer");
+}
+
+function openPerformedOperations() {
+  const sourceFilterEl = document.getElementById("operationSourceFilter");
+  const automationFilterEl = document.getElementById("operationAutomationFilter");
+  if (sourceFilterEl) {
+    sourceFilterEl.value = operationsViewState.sourceFilter;
+  }
+  if (automationFilterEl) {
+    automationFilterEl.value = operationsViewState.automationFilter;
+  }
+  renderPerformedOperationsList();
+  document.getElementById("operationsModal").classList.add("open");
+}
+
+function closePerformedOperations() {
+  document.getElementById("operationsModal").classList.remove("open");
+}
+
+function openConfirmModal({ title, message } = {}) {
+  const modal = document.getElementById("confirmModal");
+  const titleEl = document.getElementById("confirmModalTitle");
+  const messageEl = document.getElementById("confirmModalMessage");
+  titleEl.textContent = String(title || "Confirm Action");
+  messageEl.textContent = String(message || "Are you sure?");
+  modal.classList.add("open");
+  return new Promise((resolve) => {
+    confirmModalResolver = resolve;
+  });
+}
+
+function resolveConfirmModal(confirmed) {
+  const modal = document.getElementById("confirmModal");
+  modal.classList.remove("open");
+  const resolver = confirmModalResolver;
+  confirmModalResolver = null;
+  if (resolver) {
+    resolver(Boolean(confirmed));
+  }
+}
+
+function renderPerformedOperationsList() {
+  const container = document.getElementById("operationsList");
+  if (!container) {
+    return;
+  }
+
+  const sourceFilterEl = document.getElementById("operationSourceFilter");
+  const automationFilterEl = document.getElementById("operationAutomationFilter");
+  const sourceFilter = String(sourceFilterEl?.value || operationsViewState.sourceFilter || "all");
+  const automationFilter = String(automationFilterEl?.value || operationsViewState.automationFilter || "all");
+  if (automationFilterEl) {
+    automationFilterEl.disabled = sourceFilter !== "automation";
+  }
+  operationsViewState.sourceFilter = sourceFilter;
+  operationsViewState.automationFilter = automationFilter;
+
+  let items = getPerformedOperations();
+  if (sourceFilter !== "all") {
+    items = items.filter((tx) => getOperationSource(tx) === sourceFilter);
+  }
+  if (sourceFilter === "automation" && automationFilter !== "all") {
+    items = items.filter((tx) => getAutomationExecutionType(tx) === automationFilter);
+  }
+
+  container.innerHTML = "";
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "operations-item";
+    empty.textContent = "No performed operations for current filter.";
+    container.appendChild(empty);
+    return;
+  }
+
+  for (const tx of items) {
+    const row = document.createElement("div");
+    row.className = "operations-item";
+    const amount = Number(tx.amount);
+    const metadata = tx?.metadata && typeof tx.metadata === "object" ? tx.metadata : {};
+    const source = getOperationSource(tx);
+    const automationType = getAutomationExecutionType(tx);
+    const sourceText =
+      source === "automation"
+        ? `Automation${automationType ? ` (${automationType === "scheduled" ? "Scheduled" : "On-demand"})` : ""}`
+        : "Prompt";
+    const delegatedBy = String(metadata.delegatedBy || "-");
+    const scopeList = Array.isArray(metadata.delegationScope) ? metadata.delegationScope : [];
+    const scopeText = scopeList.length ? scopeList.join(", ") : "-";
+    const executedAt = formatShortTimestamp(metadata.executionTimestamp || tx.timestamp);
+    const authContext = String(metadata.authContext || "-");
+    const authClientId = String(metadata.authClientId || "-");
+    const authScopes = Array.isArray(metadata.authScopes) ? metadata.authScopes : [];
+    const authScopeText = authScopes.length ? authScopes.join(", ") : "-";
+    row.innerHTML = `
+      <div><strong>${tx.description || "Transfer operation"}</strong></div>
+      <div>Amount: ${Number.isFinite(amount) ? formatCurrency(amount) : "-"}</div>
+      <div>From ${String(tx.fromAccount || "-")} to ${String(tx.toAccount || "-")}</div>
+      <div>Source: ${sourceText}</div>
+      ${source === "automation" ? `<div>Delegated by: ${delegatedBy}</div>` : ""}
+      ${source === "automation" ? `<div>Scope: ${scopeText}</div>` : ""}
+      ${source === "automation" ? `<div>Auth context: ${authContext}</div>` : ""}
+      ${source === "automation" ? `<div>Auth client: ${authClientId}</div>` : ""}
+      ${source === "automation" ? `<div>Auth scopes: ${authScopeText}</div>` : ""}
+      <div>Executed at: ${executedAt}</div>
+    `;
+    container.appendChild(row);
+  }
+}
+
+async function loadFinancialState() {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    applyInteractionStats({ questionsAsked: 0, questionsAnswered: 0, operationsPerformed: 0 });
+    renderStats();
+    setTransactionHistory([], true);
+    return;
+  }
+
+  try {
+    const res = await fetch("/agent/state", { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to load account state");
+    }
+    applyBalances(data.balances);
+    setTransactionHistory(data.transactionHistory, true);
+    applyInteractionStats(data.interactionStats);
+    if (canManageAutomations()) {
+      await loadAutomationRules();
+    }
+  } catch {
+    applyInteractionStats({ questionsAsked: 0, questionsAnswered: 0, operationsPerformed: 0 });
+    renderStats();
+    setTransactionHistory([], true);
+  }
+}
+
+async function loadSessionConfig() {
+  try {
+    const res = await fetch("/auth/session-config");
+    const data = await res.json();
+    if (!res.ok) {
+      return;
+    }
+    const value = Number(data.sessionWarningSeconds);
+    if (Number.isFinite(value) && value > 0) {
+      sessionWarningSeconds = Math.floor(value);
+    }
+  } catch {
+    // Keep default session warning value.
+  }
+}
+
+function restoreLastUiState() {
+  document.getElementById("msg").value = "";
+
+  const lastResponse = localStorage.getItem(STORAGE_KEYS.lastResponse);
+  if (lastResponse) {
+    document.getElementById("response").textContent = lastResponse;
+  }
+}
+
+function getValidStepUpTicket() {
+  const ticket = localStorage.getItem(STORAGE_KEYS.stepUpTicket);
+  const expRaw = localStorage.getItem(STORAGE_KEYS.stepUpTicketExp);
+  const exp = Number(expRaw);
+  const now = Math.floor(Date.now() / 1000);
+
+  if (!ticket || !Number.isFinite(exp) || now >= exp) {
+    localStorage.removeItem(STORAGE_KEYS.stepUpTicket);
+    localStorage.removeItem(STORAGE_KEYS.stepUpTicketExp);
+    return "";
+  }
+
+  return ticket;
+}
+
+function handlePostReauthReturn() {
+  const pendingRaw = localStorage.getItem(STORAGE_KEYS.pendingHighRiskTransfer);
+  if (!pendingRaw) {
+    return;
+  }
+
+  const token = localStorage.getItem("access_token");
+  const stepUpTicket = getValidStepUpTicket();
+  if (!token || !stepUpTicket) {
+    return;
+  }
+
+  try {
+    const pending = JSON.parse(pendingRaw);
+    const responseEl = document.getElementById("response");
+    responseEl.classList.remove("error");
+    responseEl.textContent = "Re-authentication complete. Retrying pending transfer...";
+
+    if (pending && typeof pending.message === "string" && pending.message.trim()) {
+      document.getElementById("msg").value = pending.message;
+      send(pending.message);
+    }
+    localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
+    localStorage.setItem(STORAGE_KEYS.lastResponse, responseEl.textContent);
+  } catch {
+    localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
+  }
+}
+
+function decodeJwtClaims(token) {
+  if (!token || typeof token !== "string") {
+    return null;
+  }
+
+  const parts = token.split(".");
+  if (parts.length < 2) {
+    return null;
+  }
+
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+function getSessionSecondsRemaining() {
+  const idToken = localStorage.getItem("id_token");
+  const claims = decodeJwtClaims(idToken);
+  const exp = Number(claims?.exp);
+  if (!Number.isFinite(exp) || exp <= 0) {
+    return null;
+  }
+  return exp - Math.floor(Date.now() / 1000);
+}
+
+function showSessionModal(mode, message) {
+  const modal = document.getElementById("sessionModal");
+  const title = document.getElementById("sessionModalTitle");
+  const body = document.getElementById("sessionModalMessage");
+  const refreshBtn = document.getElementById("sessionRefreshBtn");
+  const loginBtn = document.getElementById("sessionLoginBtn");
+  if (mode === "expired") {
+    title.textContent = "Session expired";
+    refreshBtn.style.display = "none";
+    loginBtn.style.display = "inline-flex";
+  } else {
+    title.textContent = "Session expiring soon";
+    refreshBtn.style.display = "inline-flex";
+    loginBtn.style.display = "none";
+  }
+  body.textContent = message;
+  modal.classList.add("open");
+}
+
+function hideSessionModal() {
+  document.getElementById("sessionModal").classList.remove("open");
+}
+
+function checkSessionState() {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    hideSessionModal();
+    return;
+  }
+
+  const remaining = getSessionSecondsRemaining();
+  if (remaining == null) {
+    hideSessionModal();
+    return;
+  }
+
+  if (remaining <= 0) {
+    showSessionModal(
+      "expired",
+      "Your secure session has expired. Please login again to continue."
+    );
+    return;
+  }
+
+  if (remaining <= sessionWarningSeconds) {
+    showSessionModal(
+      "warning",
+      `Your session will expire in about ${Math.max(1, Math.ceil(remaining / 60))} minute(s). Continue your session?`
+    );
+    return;
+  }
+
+  hideSessionModal();
+}
+
+async function refreshSession() {
+  const refreshToken = localStorage.getItem("refresh_token");
+  if (!refreshToken) {
+    showSessionModal(
+      "expired",
+      "Session refresh token is unavailable. Please sign in again."
+    );
+    return;
+  }
+
+  const refreshBtn = document.getElementById("sessionRefreshBtn");
+  const previousHtml = refreshBtn.innerHTML;
+  refreshBtn.disabled = true;
+  refreshBtn.innerHTML = '<span class="material-symbols-outlined">autorenew</span>Refreshing...';
+
+  try {
+    const res = await fetch("/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to refresh session");
+    }
+
+    if (data.access_token) {
+      localStorage.setItem("access_token", data.access_token);
+    }
+    if (data.id_token) {
+      localStorage.setItem("id_token", data.id_token);
+    }
+    if (data.refresh_token) {
+      localStorage.setItem("refresh_token", data.refresh_token);
+    }
+
+    hideSessionModal();
+    updateAuthBadge();
+    await loadFinancialState();
+  } catch (error) {
+    showSessionModal("expired", `Could not refresh session: ${error.message}`);
+  } finally {
+    refreshBtn.disabled = false;
+    refreshBtn.innerHTML = previousHtml;
+  }
+}
+
+function resolveDisplayName() {
+  const idToken = localStorage.getItem("id_token");
+  const claims = decodeJwtClaims(idToken);
+  if (!claims) {
+    return "Guest User";
+  }
+
+  const fullName = claims?.fullName?.formatted;
+  if (fullName && String(fullName).trim()) {
+    return String(fullName).trim();
+  }
+
+  const given = claims?.fullName?.givenName || claims?.given_name || "";
+  const family = claims?.fullName?.familyName || claims?.family_name || "";
+  const composed = `${given} ${family}`.trim();
+  if (composed) {
+    return composed;
+  }
+
+  return claims?.email || claims?.sub || "Guest User";
+}
+
+function updateAuthBadge() {
+  const token = localStorage.getItem("access_token");
+  const badge = document.getElementById("authStatus");
+  const authActionBtn = document.getElementById("authActionBtn");
+  document.getElementById("userDisplayName").textContent = resolveDisplayName();
+  if (token) {
+    badge.textContent = "Authenticated";
+    badge.classList.remove("offline");
+    if (authActionBtn) {
+      authActionBtn.className = "btn btn-delete";
+      authActionBtn.innerHTML = '<span class="material-symbols-outlined">logout</span>Logout';
+    }
+  } else {
+    badge.textContent = "Not Signed In";
+    badge.classList.add("offline");
+    if (authActionBtn) {
+      authActionBtn.className = "btn btn-login";
+      authActionBtn.innerHTML = '<span class="material-symbols-outlined">login</span>Login with OneWelcome';
+    }
+  }
+}
+
+function toggleUserMenu(force) {
+  const panel = document.getElementById("userMenuPanel");
+  userMenuOpen = typeof force === "boolean" ? force : !userMenuOpen;
+  panel.classList.toggle("open", userMenuOpen);
+}
+
+function openSettingsPage() {
+  toggleUserMenu(false);
+  document.getElementById("settingsPage").classList.remove("hidden");
+}
+
+function closeSettingsPage() {
+  document.getElementById("settingsPage").classList.add("hidden");
+}
+
+function getAuthHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+function renderDelegationOptions() {
+  const container = document.getElementById("delegationOptions");
+  container.innerHTML = "";
+
+  for (const option of delegationState.options) {
+    const row = document.createElement("label");
+    row.className = "delegation-option";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = option.key;
+    checkbox.checked = delegationState.delegatedOperations.includes(option.key);
+    checkbox.disabled = !delegationState.idvVerified;
+
+    const textWrap = document.createElement("div");
+    textWrap.innerHTML = `<strong>${option.label}</strong><small>${option.description}</small>`;
+
+    row.appendChild(checkbox);
+    row.appendChild(textWrap);
+    container.appendChild(row);
+  }
+}
+
+function delegatedOperationNames(keys) {
+  const optionsByKey = new Map(
+    delegationState.options.map((option) => [option.key, option.label])
+  );
+  return (Array.isArray(keys) ? keys : [])
+    .map((key) => optionsByKey.get(key) || key)
+    .filter(Boolean);
+}
+
+function updateDelegationActionVisibility() {
+  const token = localStorage.getItem("access_token");
+  const idvBtn = document.getElementById("idvBtn");
+  if (!idvBtn) {
+    return;
+  }
+  idvBtn.style.display = token && !delegationState.idvVerified ? "inline-flex" : "none";
+}
+
+function updateDelegationNote() {
+  const noteEl = document.getElementById("delegationNote");
+  if (!noteEl) {
+    return;
+  }
+
+  if (delegationState.idvVerified) {
+    noteEl.textContent =
+      "IDV completed, you can choose what operations the agent is allowed to perform on your behalf.";
+    return;
+  }
+
+  noteEl.textContent =
+    "Complete IDV first, then choose what operations the agent is allowed to perform on your behalf.";
+}
+
+function renderDelegationStatus(messageOverride) {
+  const statusEl = document.getElementById("delegationStatus");
+  updateDelegationActionVisibility();
+  updateDelegationNote();
+  if (messageOverride) {
+    statusEl.textContent = messageOverride;
+    return;
+  }
+
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    statusEl.textContent = "Sign in to configure delegation.";
+    return;
+  }
+
+  if (!delegationState.idvVerified) {
+    statusEl.textContent = "IDV not completed. Complete IDV before selecting delegation options.";
+    return;
+  }
+
+  const names = delegatedOperationNames(delegationState.delegatedOperations);
+  const grants = names.length ? names.join(", ") : "None selected";
+  statusEl.textContent = `Delegated operations: ${grants}`;
+}
+
+function canManageAutomations() {
+  return Boolean(
+    delegationState.idvVerified &&
+      Array.isArray(delegationState.delegatedOperations) &&
+      delegationState.delegatedOperations.includes("manage_automations")
+  );
+}
+
+function updateScheduleFieldsVisibility() {
+  const type = document.getElementById("autoScheduleType").value;
+  document.getElementById("scheduleIntervalWrap").classList.toggle("hidden", type !== "custom_interval");
+  document.getElementById("scheduleWeeklyWrap").classList.toggle("hidden", type !== "weekly_n_times");
+  document.getElementById("scheduleDatesWrap").classList.toggle("hidden", type !== "specific_dates");
+}
+
+function renderAutomationStatus(message = "") {
+  const ids = ["automationStatus", "automationStatusAgent"];
+  for (const id of ids) {
+    const node = document.getElementById(id);
+    if (node) {
+      node.textContent = message;
+    }
+  }
+}
+
+function clearAutomationRunDetails() {
+  const ids = ["automationRunDetails", "automationRunDetailsAgent"];
+  for (const id of ids) {
+    const box = document.getElementById(id);
+    if (!box) {
+      continue;
+    }
+    box.classList.add("hidden");
+    box.innerHTML = "";
+  }
+}
+
+function renderAutomationThinking(rule) {
+  const ids = ["automationRunDetails", "automationRunDetailsAgent"];
+  const ruleName = String(rule?.name || "Selected rule");
+  const html = `
+    <div class="automation-run-title">Automation execution in progress</div>
+    <div class="flow-step"><strong>Status:</strong> thinking</div>
+    <div class="flow-step">Rule: ${ruleName}</div>
+    <div class="flow-step">AI engine is evaluating policy and preparing execution.</div>
+    <div class="flow-step">Please wait...</div>
+  `;
+  for (const id of ids) {
+    const box = document.getElementById(id);
+    if (!box) {
+      continue;
+    }
+    box.innerHTML = html;
+    box.classList.remove("hidden");
+  }
+}
+
+function renderAutomationRunDetails(result) {
+  if (!result || typeof result !== "object") {
+    clearAutomationRunDetails();
+    return;
+  }
+
+  const source = String(result.decisionSource || "automation-rule-engine");
+  const sourceLabel = String(result.source || "automation");
+  const modelLabel = String(result.model || "deterministic-rule-engine");
+  const flow = Array.isArray(result.decisionFlow) ? result.decisionFlow : [];
+  const status = String(result.status || "unknown");
+  const reason = String(result.reason || "");
+  const code = String(result.code || "");
+  const operation = result.operation && typeof result.operation === "object" ? result.operation : null;
+  const balances = result.balances && typeof result.balances === "object" ? result.balances : null;
+
+  const title =
+    status === "completed"
+      ? "Automation execution details"
+      : "Automation execution failed/skipped";
+
+  const lines = flow.length
+    ? flow.map((step, index) => `<div class="flow-step">${index + 1}. ${String(step || "")}</div>`).join("")
+    : '<div class="flow-step">No decision flow available.</div>';
+
+  const html = `
+    <div class="automation-run-title">${title}</div>
+    <div class="flow-step"><strong>Status:</strong> ${status}</div>
+    ${
+      operation
+        ? `<div class="flow-step"><strong>Operation:</strong> ${Number(operation.amount || 0).toFixed(2)} from ${String(
+            operation.fromAccount || "available"
+          )} to ${String(operation.toAccount || "savings")} (risk: ${String(operation.riskStatus || "Normal")})</div>`
+        : ""
+    }
+    ${
+      balances
+        ? `<div class="flow-step"><strong>Balances:</strong> available ${Number(
+            balances.availableBalance || 0
+          ).toFixed(2)}, savings ${Number(balances.savingsBalance || 0).toFixed(2)}</div>`
+        : ""
+    }
+    ${reason ? `<div class="flow-step"><strong>Reason:</strong> ${reason}</div>` : ""}
+    ${code ? `<div class="flow-step"><strong>Code:</strong> ${code}</div>` : ""}
+    <div class="flow-step">source: ${sourceLabel} | model: ${modelLabel}</div>
+    <div class="flow-step"><strong>Source of decision:</strong> ${source}</div>
+    <div class="flow-title">How it reached this</div>
+    ${lines}
+    <div style="margin-top:8px; display:flex; justify-content:flex-end;">
+      <button class="btn btn-cancel" onclick="clearAutomationRunDetails()"><span class="material-symbols-outlined">close</span>Clear</button>
+    </div>
+  `;
+  const ids = ["automationRunDetails", "automationRunDetailsAgent"];
+  for (const id of ids) {
+    const box = document.getElementById(id);
+    if (!box) {
+      continue;
+    }
+    box.innerHTML = html;
+    box.classList.remove("hidden");
+  }
+}
+
+function setAutomationForm(rule = null) {
+  automationState.editingRuleId = rule?.id || null;
+  document.getElementById("autoRuleName").value = rule?.name || "Balance based rule";
+  document.getElementById("autoTransferAmount").value = rule?.transferAmount ?? "";
+  document.getElementById("autoMinBalance").value = rule?.minAvailableBalance ?? "";
+  document.getElementById("autoMode").value = rule?.mode || "scheduled";
+  document.getElementById("autoSourceAccount").value = rule?.sourceAccount || "available";
+  document.getElementById("autoDestinationAccount").value = rule?.destinationAccount || "savings";
+  document.getElementById("autoScheduleType").value = rule?.scheduleType || "hourly";
+  document.getElementById("autoIntervalMinutes").value =
+    rule?.scheduleConfig?.intervalMinutes || rule?.intervalMinutes || 1440;
+  document.getElementById("autoTimesPerWeek").value = rule?.scheduleConfig?.timesPerWeek || 3;
+  document.getElementById("autoSpecificDates").value = Array.isArray(rule?.scheduleConfig?.dates)
+    ? rule.scheduleConfig.dates.join(", ")
+    : "";
+  document.getElementById("saveAutomationBtn").innerHTML = rule
+    ? '<span class="material-symbols-outlined">edit</span>Update Rule'
+    : '<span class="material-symbols-outlined">save</span>Save Rule';
+  document.getElementById("cancelEditAutomationBtn").classList.toggle("hidden", !rule);
+  updateScheduleFieldsVisibility();
+}
+
+function cancelAutomationEdit() {
+  setAutomationForm(null);
+  renderAutomationStatus("Edit cancelled.");
+  clearAutomationRunDetails();
+}
+
+function renderAutomationRules() {
+  const settingsContainer = document.getElementById("automationRules");
+  const agentContainer = document.getElementById("automationRulesAgent");
+  const rules = automationState.enabledOnlyFilter
+    ? automationState.rules.filter((rule) => Boolean(rule.enabled))
+    : automationState.rules;
+
+  if (settingsContainer) {
+    settingsContainer.innerHTML = "";
+  }
+  if (agentContainer) {
+    agentContainer.innerHTML = "";
+  }
+
+  if (!rules.length) {
+    const empty = "<div class='automation-rule-item'>No automation rules saved.</div>";
+    if (settingsContainer) {
+      settingsContainer.innerHTML = empty;
+    }
+    if (agentContainer) {
+      agentContainer.innerHTML = empty;
+    }
+    return;
+  }
+
+  for (const rule of rules) {
+    const isRunning = automationState.runningRuleId === rule.id;
+    const scheduleText =
+      rule.mode === "on_demand"
+        ? "On demand"
+        : rule.scheduleType === "hourly"
+          ? "Every hour"
+          : rule.scheduleType === "daily"
+            ? "Every day"
+            : rule.scheduleType === "weekly_n_times"
+              ? `${Number(rule.scheduleConfig?.timesPerWeek || 1)} times per week`
+              : rule.scheduleType === "specific_dates"
+                ? "Specific dates"
+                : `Every ${rule.intervalMinutes} minutes`;
+
+    if (settingsContainer) {
+      const item = document.createElement("div");
+      item.className = "automation-rule-item";
+      item.innerHTML = `
+        <div><strong>${rule.name}</strong></div>
+        <div>Transfer $${Number(rule.transferAmount).toFixed(2)} when balance >= $${Number(
+        rule.minAvailableBalance
+      ).toFixed(2)}</div>
+        <div>${scheduleText}</div>
+        <div class="rule-toggle-row">
+          <span class="rule-toggle-label">Enabled: ${rule.enabled ? "On" : "Off"}</span>
+          <label class="switch">
+            <input type="checkbox" ${rule.enabled ? "checked" : ""} onchange="toggleAutomationRuleEnabled('${rule.id}', this.checked)" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div>Next run: ${formatRunTimestamp(rule.nextRunAt)} | Last run: ${formatRunTimestamp(rule.lastRunAt)}</div>
+        <div style="margin-top:6px; display:flex; justify-content:space-between; gap:6px; align-items:center;">
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-edit" onclick="editAutomationRule('${rule.id}')"><span class="material-symbols-outlined">edit</span>Edit</button>
+            <button class="btn btn-delete" onclick="deleteAutomationRule('${rule.id}')"><span class="material-symbols-outlined">delete</span>Delete</button>
+          </div>
+          <button class="btn btn-save" ${isRunning || !rule.enabled ? "disabled" : ""} onclick="runAutomationRule('${rule.id}')"><span class="material-symbols-outlined">${isRunning ? "hourglass_top" : "play_arrow"}</span>${isRunning ? "Thinking..." : "Run"}</button>
+        </div>
+      `;
+      settingsContainer.appendChild(item);
+    }
+
+    if (agentContainer) {
+      const item = document.createElement("div");
+      item.className = "automation-rule-item";
+      item.innerHTML = `
+        <div><strong>${rule.name}</strong></div>
+        <div>Transfer $${Number(rule.transferAmount).toFixed(2)} when balance >= $${Number(
+        rule.minAvailableBalance
+      ).toFixed(2)}</div>
+        <div>${scheduleText}</div>
+        <div class="rule-toggle-row">
+          <span class="rule-toggle-label">Enabled: ${rule.enabled ? "On" : "Off"}</span>
+          <label class="switch">
+            <input type="checkbox" ${rule.enabled ? "checked" : ""} onchange="toggleAutomationRuleEnabled('${rule.id}', this.checked)" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div>Next run: ${formatRunTimestamp(rule.nextRunAt)} | Last run: ${formatRunTimestamp(rule.lastRunAt)}</div>
+        <div style="margin-top:6px; display:flex; justify-content:flex-end; gap:6px; align-items:center;">
+          <button class="btn btn-edit" onclick="openAutomationRuleEditor('${rule.id}')"><span class="material-symbols-outlined">edit</span>Edit</button>
+          <button class="btn btn-save" ${isRunning || !rule.enabled ? "disabled" : ""} onclick="runAutomationRule('${rule.id}')"><span class="material-symbols-outlined">${isRunning ? "hourglass_top" : "play_arrow"}</span>${isRunning ? "Thinking..." : "Run"}</button>
+        </div>
+      `;
+      agentContainer.appendChild(item);
+    }
+  }
+}
+
+function setAutomationEnabledFilter(enabledOnly) {
+  automationState.enabledOnlyFilter = Boolean(enabledOnly);
+  const agentFilter = document.getElementById("enabledOnlyFilterAgent");
+  const settingsFilter = document.getElementById("enabledOnlyFilterSettings");
+  if (agentFilter) {
+    agentFilter.checked = automationState.enabledOnlyFilter;
+  }
+  if (settingsFilter) {
+    settingsFilter.checked = automationState.enabledOnlyFilter;
+  }
+  renderAutomationRules();
+}
+
+async function toggleAutomationRuleEnabled(ruleId, enabled) {
+  if (!canManageAutomations()) {
+    renderAutomationStatus("Please delegate 'Manage automations' first.");
+    await loadAutomationRules();
+    return;
+  }
+  try {
+    const res = await fetch(`/automation/rules/${encodeURIComponent(ruleId)}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ enabled: Boolean(enabled) })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to update rule status");
+    }
+    renderAutomationStatus(`Rule ${enabled ? "enabled" : "disabled"}.`);
+    clearAutomationRunDetails();
+    await loadAutomationRules();
+  } catch (error) {
+    renderAutomationStatus(`Rule status update error: ${error.message}`);
+    await loadAutomationRules();
+  }
+}
+
+function updateAutomationUiState() {
+  const enabled = canManageAutomations();
+  const ids = [
+    "autoRuleName",
+    "autoTransferAmount",
+    "autoMinBalance",
+    "autoMode",
+    "autoScheduleType",
+    "autoTimesPerWeek",
+    "autoSpecificDates",
+    "autoIntervalMinutes",
+    "autoSourceAccount",
+    "autoDestinationAccount",
+    "saveAutomationBtn",
+    "cancelEditAutomationBtn"
+  ];
+  for (const id of ids) {
+    const node = document.getElementById(id);
+    if (node) {
+      node.disabled = !enabled;
+    }
+  }
+  if (!enabled) {
+    renderAutomationStatus("Delegate 'Manage automations' to configure and run rules.");
+  } else {
+    renderAutomationStatus("");
+  }
+  updateScheduleFieldsVisibility();
+}
+
+async function loadAutomationRules() {
+  const token = localStorage.getItem("access_token");
+  if (!token || !canManageAutomations()) {
+    automationState.rules = [];
+    renderAutomationRules();
+    updateAutomationUiState();
+    setAutomationForm(null);
+    clearAutomationRunDetails();
+    return;
+  }
+
+  try {
+    const res = await fetch("/automation/rules", { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to load automation rules");
+    }
+    automationState.rules = Array.isArray(data.rules) ? data.rules : [];
+    renderAutomationRules();
+    updateAutomationUiState();
+    if (!automationState.editingRuleId) {
+      setAutomationForm(null);
+    }
+  } catch (error) {
+    automationState.rules = [];
+    renderAutomationRules();
+    renderAutomationStatus(`Automation load error: ${error.message}`);
+  }
+}
+
+function buildSchedulePayload() {
+  const scheduleType = document.getElementById("autoScheduleType").value;
+  if (scheduleType === "weekly_n_times") {
+    return {
+      scheduleType,
+      scheduleConfig: { timesPerWeek: Number(document.getElementById("autoTimesPerWeek").value || 1) }
+    };
+  }
+  if (scheduleType === "specific_dates") {
+    const raw = String(document.getElementById("autoSpecificDates").value || "");
+    const dates = raw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return { scheduleType, scheduleConfig: { dates } };
+  }
+  if (scheduleType === "custom_interval") {
+    return {
+      scheduleType,
+      scheduleConfig: { intervalMinutes: Number(document.getElementById("autoIntervalMinutes").value || 1440) }
+    };
+  }
+  return { scheduleType, scheduleConfig: {} };
+}
+
+async function saveAutomationRule() {
+  if (!canManageAutomations()) {
+    renderAutomationStatus("Please delegate 'Manage automations' first.");
+    clearAutomationRunDetails();
+    return;
+  }
+
+  const body = {
+    name: document.getElementById("autoRuleName").value || "Balance based rule",
+    transferAmount: Number(document.getElementById("autoTransferAmount").value),
+    minAvailableBalance: Number(document.getElementById("autoMinBalance").value),
+    mode: document.getElementById("autoMode").value,
+    sourceAccount: document.getElementById("autoSourceAccount").value,
+    destinationAccount: document.getElementById("autoDestinationAccount").value,
+    enabled: true
+  };
+  Object.assign(body, buildSchedulePayload());
+  if (body.scheduleType === "custom_interval") {
+    body.intervalMinutes = Number(document.getElementById("autoIntervalMinutes").value || 1440);
+  }
+
+  try {
+    const editing = Boolean(automationState.editingRuleId);
+    const endpoint = editing
+      ? `/automation/rules/${encodeURIComponent(automationState.editingRuleId)}`
+      : "/automation/rules";
+    const res = await fetch(endpoint, {
+      method: editing ? "PUT" : "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to save automation rule");
+    }
+    renderAutomationStatus(editing ? "Automation rule updated." : "Automation rule saved.");
+    setAutomationForm(null);
+    clearAutomationRunDetails();
+    await loadAutomationRules();
+  } catch (error) {
+    renderAutomationStatus(`Automation save error: ${error.message}`);
+    clearAutomationRunDetails();
+  }
+}
+
+function editAutomationRule(ruleId) {
+  const rule = automationState.rules.find((item) => item.id === ruleId);
+  if (!rule) {
+    return;
+  }
+  setAutomationForm(rule);
+  renderAutomationStatus(`Editing rule: ${rule.name}`);
+  clearAutomationRunDetails();
+}
+
+function openAutomationRuleEditor(ruleId) {
+  openSettingsPage();
+  editAutomationRule(ruleId);
+  const panel = document.getElementById("autoRuleName");
+  if (panel && typeof panel.focus === "function") {
+    panel.focus();
+  }
+}
+
+async function deleteAutomationRule(ruleId) {
+  if (!canManageAutomations()) {
+    renderAutomationStatus("Please delegate 'Manage automations' first.");
+    clearAutomationRunDetails();
+    return;
+  }
+  const targetRule = automationState.rules.find((item) => item.id === ruleId);
+  const targetName = targetRule?.name || "this rule";
+  const confirmed = await openConfirmModal({
+    title: "Delete Rule",
+    message: `Delete ${targetName}? This action cannot be undone.`
+  });
+  if (!confirmed) {
+    renderAutomationStatus("Delete cancelled.");
+    return;
+  }
+  try {
+    const res = await fetch(`/automation/rules/${encodeURIComponent(ruleId)}`, {
+      method: "DELETE",
+      headers: getAuthHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to delete rule");
+    }
+    if (automationState.editingRuleId === ruleId) {
+      setAutomationForm(null);
+    }
+    renderAutomationStatus("Automation rule deleted.");
+    clearAutomationRunDetails();
+    await loadAutomationRules();
+  } catch (error) {
+    renderAutomationStatus(`Automation delete error: ${error.message}`);
+    clearAutomationRunDetails();
+  }
+}
+
+async function runAutomationRule(ruleId) {
+  if (!canManageAutomations()) {
+    renderAutomationStatus("Please delegate 'Manage automations' first.");
+    clearAutomationRunDetails();
+    return;
+  }
+
+  const rule = automationState.rules.find((item) => item.id === ruleId);
+  if (!rule) {
+    renderAutomationStatus("Selected automation rule was not found.");
+    clearAutomationRunDetails();
+    return;
+  }
+  if (automationState.runningRuleId) {
+    return;
+  }
+
+  try {
+    automationState.runningRuleId = rule.id;
+    renderAutomationRules();
+    renderAutomationStatus(`Running "${rule.name}" via AI engine...`);
+    renderAutomationThinking(rule);
+
+    const res = await fetch(`/automation/rules/${encodeURIComponent(rule.id)}/run`, {
+      method: "POST",
+      headers: getAuthHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to run automation rule");
+    }
+    const status = data?.result?.status || "unknown";
+    renderAutomationStatus(`Run-now result: ${status}.`);
+    renderAutomationRunDetails(data?.result || {});
+    await loadFinancialState();
+    await loadAutomationRules();
+  } catch (error) {
+    renderAutomationStatus(`Automation run error: ${error.message}`);
+    clearAutomationRunDetails();
+  } finally {
+    automationState.runningRuleId = null;
+    renderAutomationRules();
+  }
+}
+
+function handleIdvReturnStatusFromQuery() {
+  const url = new URL(window.location.href);
+  const idvStatus = (url.searchParams.get("idv_status") || "").toLowerCase();
+  if (!idvStatus) {
+    return;
+  }
+
+  if (idvStatus === "verified") {
+    renderDelegationStatus("IDV completed successfully via OneWelcome.");
+  } else {
+    renderDelegationStatus("IDV failed or was not completed. Please retry.");
+  }
+
+  url.searchParams.delete("idv_status");
+  window.history.replaceState({}, document.title, url.pathname + url.search);
+}
+
+async function loadDelegationOptions() {
+  try {
+    const res = await fetch("/delegation/options");
+    const data = await res.json();
+    delegationState.options = Array.isArray(data.options) ? data.options : [];
+    renderDelegationOptions();
+  } catch {
+    renderDelegationStatus("Unable to load delegation options.");
+  }
+}
+
+async function loadDelegationStatus() {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    delegationState.idvVerified = false;
+    delegationState.idvVerifiedAt = null;
+    delegationState.delegatedOperations = [];
+    renderDelegationOptions();
+    renderDelegationStatus();
+    updateAutomationUiState();
+    loadAutomationRules();
+    return;
+  }
+
+  try {
+    const res = await fetch("/delegation/status", { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to load delegation status");
+    }
+
+    delegationState.idvVerified = Boolean(data.idvVerified);
+    delegationState.idvVerifiedAt = data.idvVerifiedAt || null;
+    delegationState.delegatedOperations = Array.isArray(data.delegatedOperations)
+      ? data.delegatedOperations
+      : [];
+    renderDelegationOptions();
+    renderDelegationStatus();
+    updateAutomationUiState();
+    loadAutomationRules();
+  } catch (error) {
+    if (String(error.message || "").toLowerCase().includes("authentication required")) {
+      renderDelegationStatus("Delegation status error: IDV is required");
+      return;
+    }
+    renderDelegationStatus(`Delegation status error: ${error.message}`);
+  }
+}
+
+async function completeIdv() {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    renderDelegationStatus("Please sign in before starting IDV.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/delegation/idv/start", {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ returnTo: "/" })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to start IDV");
+    }
+
+    if (!data.redirectUrl) {
+      throw new Error("IDV start URL was not provided by backend.");
+    }
+
+    window.location.href = data.redirectUrl;
+  } catch (error) {
+    renderDelegationStatus(`IDV start error: ${error.message}`);
+  }
+}
+
+async function saveDelegation() {
+  const selected = Array.from(
+    document.querySelectorAll("#delegationOptions input[type='checkbox']:checked")
+  ).map((node) => node.value);
+
+  try {
+    const res = await fetch("/delegation/grants", {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ operations: selected })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to save delegation");
+    }
+
+    delegationState.idvVerified = Boolean(data.idvVerified);
+    delegationState.idvVerifiedAt = data.idvVerifiedAt || null;
+    delegationState.delegatedOperations = Array.isArray(data.delegatedOperations)
+      ? data.delegatedOperations
+      : [];
+    renderDelegationOptions();
+    renderDelegationStatus("Delegation updated successfully.");
+    updateAutomationUiState();
+    loadAutomationRules();
+    setTimeout(() => renderDelegationStatus(), 2500);
+  } catch (error) {
+    renderDelegationStatus(`Delegation error: ${error.message}`);
+  }
+}
+
+updateAuthBadge();
+renderStats();
+renderQuestionHistoryDropdown();
+setTransactionHistory([], true);
+restoreLastUiState();
+handlePostReauthReturn();
+loadDelegationOptions();
+loadDelegationStatus();
+handleIdvReturnStatusFromQuery();
+loadFinancialState();
+updateAutomationUiState();
+renderAutomationRules();
+setAutomationForm(null);
+loadSessionConfig().finally(() => {
+  checkSessionState();
+  setInterval(checkSessionState, 15000);
+});
+
+function login() {
+  window.location.href = "/auth/login";
+}
+
+function loginAgainFullAuth() {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("id_token");
+  localStorage.removeItem("refresh_token");
+  localStorage.removeItem(STORAGE_KEYS.stepUpTicket);
+  localStorage.removeItem(STORAGE_KEYS.stepUpTicketExp);
+  localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
+  window.location.href = "/auth/login?reauth=1&returnTo=/";
+}
+
+function logout() {
+  const idToken = localStorage.getItem("id_token");
+  const query = idToken ? `?id_token_hint=${encodeURIComponent(idToken)}` : "";
+  window.location.href = `/auth/logout${query}`;
+}
+
+function clearAgentResponse() {
+  const responseEl = document.getElementById("response");
+  responseEl.classList.remove("error");
+  responseEl.textContent = "Response will appear here.";
+  localStorage.removeItem(STORAGE_KEYS.lastResponse);
+}
+
+function authAction() {
+  toggleUserMenu(false);
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    logout();
+    return;
+  }
+  login();
+}
+
+function renderAgentResponse(payload, isError) {
+  const responseEl = document.getElementById("response");
+  responseEl.classList.toggle("error", Boolean(isError));
+  responseEl.textContent = payload.output || "";
+
+  if (!isError && payload.source) {
+    const meta = document.createElement("div");
+    meta.style.marginTop = "10px";
+    meta.style.fontSize = "0.8rem";
+    meta.style.color = "#4f6685";
+    const modelInfo = payload.model ? ` | model: ${payload.model}` : "";
+    meta.textContent = `source: ${payload.source}${modelInfo}`;
+    responseEl.appendChild(meta);
+  }
+
+  if (!isError && Array.isArray(payload.decisionFlow) && payload.decisionFlow.length) {
+    const flowBox = document.createElement("div");
+    flowBox.className = "flow-box";
+
+    const flowTitle = document.createElement("div");
+    flowTitle.className = "flow-title";
+    flowTitle.textContent = "How I reached this";
+    flowBox.appendChild(flowTitle);
+
+    for (const [index, step] of payload.decisionFlow.entries()) {
+      const row = document.createElement("div");
+      row.className = "flow-step";
+      row.textContent = `${index + 1}. ${String(step || "")}`;
+      flowBox.appendChild(row);
+    }
+
+    responseEl.appendChild(flowBox);
+  }
+
+  if (payload.requiresReauth) {
+    const currentMessage = document.getElementById("msg").value.trim();
+    localStorage.setItem(
+      STORAGE_KEYS.pendingHighRiskTransfer,
+      JSON.stringify({ message: currentMessage, createdAt: Date.now() })
+    );
+
+    const wrapper = document.createElement("div");
+    wrapper.style.marginTop = "12px";
+
+    const button = document.createElement("button");
+    button.className = "btn btn-login";
+    button.innerHTML = '<span class="material-symbols-outlined">lock_reset</span>Re-authenticate with OneWelcome';
+    button.onclick = () => {
+      window.location.href = payload.reauthUrl || "/auth/login";
+    };
+
+    wrapper.appendChild(button);
+    responseEl.appendChild(wrapper);
+  }
+
+  localStorage.setItem(STORAGE_KEYS.lastResponse, payload.output || "");
+}
+
+async function send(messageOverride) {
+  const message = String(
+    messageOverride == null ? document.getElementById("msg").value : messageOverride
+  ).trim();
+  const responseEl = document.getElementById("response");
+  const messageInputEl = document.getElementById("msg");
+
+  if (!message) {
+    responseEl.classList.add("error");
+    responseEl.innerText = "Please enter a message before sending.";
+    return;
+  }
+
+  const remaining = getSessionSecondsRemaining();
+  if (remaining != null && remaining <= 0) {
+    showSessionModal("expired", "Your secure session has expired. Please sign in again.");
+    return;
+  }
+
+  responseEl.classList.remove("error");
+  responseEl.innerText = "Thinking...";
+  storeQuestionHistory(message);
+
+  try {
+    const token = localStorage.getItem("access_token");
+    const idToken = localStorage.getItem("id_token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    if (idToken) {
+      headers["X-Id-Token"] = idToken;
+    }
+    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (browserTimeZone) {
+      headers["X-Client-Timezone"] = browserTimeZone;
+    }
+    const browserLocale = navigator.language || "";
+    if (browserLocale) {
+      headers["X-Client-Locale"] = browserLocale;
+    }
+    const stepUpTicket = getValidStepUpTicket();
+    if (stepUpTicket) {
+      headers["X-Step-Up-Ticket"] = stepUpTicket;
+    }
+
+    const res = await fetch("/agent", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ message })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      renderAgentResponse({ output: `Error: ${data.error || "Request failed"}` }, true);
+      messageInputEl.value = "";
+      return;
+    }
+
+    if (data.riskStatus) {
+      accountState.riskStatus = data.riskStatus;
+      renderStats();
+    }
+    applyBalances(data.balances);
+    setTransactionHistory(data.transactionHistory, true);
+    applyInteractionStats(data.interactionStats);
+
+    if (data.transfer && Number(data.transfer.amount) > 100) {
+      localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
+      localStorage.removeItem(STORAGE_KEYS.stepUpTicket);
+      localStorage.removeItem(STORAGE_KEYS.stepUpTicketExp);
+    }
+
+    if (data.intent === "manage_automations" && canManageAutomations()) {
+      await loadAutomationRules();
+    }
+
+    renderAgentResponse(data, false);
+    messageInputEl.value = "";
+  } catch (error) {
+    renderAgentResponse({ output: `Error: ${error.message}` }, true);
+    messageInputEl.value = "";
+  }
+}
+
+document.getElementById("msg").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    send();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  const menuButton = document.getElementById("userMenuButton");
+  const menuPanel = document.getElementById("userMenuPanel");
+  if (!menuPanel.classList.contains("open")) {
+    const operationsModal = document.getElementById("operationsModal");
+    if (operationsModal && event.target === operationsModal) {
+      closePerformedOperations();
+    }
+    const confirmModal = document.getElementById("confirmModal");
+    if (confirmModal && event.target === confirmModal) {
+      resolveConfirmModal(false);
+    }
+    return;
+  }
+
+  if (menuButton.contains(event.target) || menuPanel.contains(event.target)) {
+    const operationsModal = document.getElementById("operationsModal");
+    if (operationsModal && event.target === operationsModal) {
+      closePerformedOperations();
+    }
+    const confirmModal = document.getElementById("confirmModal");
+    if (confirmModal && event.target === confirmModal) {
+      resolveConfirmModal(false);
+    }
+    return;
+  }
+
+  toggleUserMenu(false);
+  const operationsModal = document.getElementById("operationsModal");
+  if (operationsModal && event.target === operationsModal) {
+    closePerformedOperations();
+  }
+  const confirmModal = document.getElementById("confirmModal");
+  if (confirmModal && event.target === confirmModal) {
+    resolveConfirmModal(false);
+  }
+});
+</script>
+
+</body>
+</html>
