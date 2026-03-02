@@ -1,0 +1,39 @@
+.operations-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin: 8px 0 12px;
+  align-items: center;
+}
+
+.operations-filters select {
+  border: 1px solid #cfdbed;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  width: 100%;
+}
+
+.operations-list {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid #d6e4f7;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.operations-item {
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #dce8f8;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+  color: #204468;
+  display: grid;
+  gap: 2px;
+}

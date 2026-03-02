@@ -1,0 +1,84 @@
+.agent-automation-section {
+  margin-top: 12px;
+  border-top: 1px solid #d6e4f7;
+  padding-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.automation-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.automation-title {
+  margin: 0;
+  font-weight: 800;
+  color: #173b66;
+  font-size: 0.95rem;
+}
+
+.rule-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rule-toggle-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #335a84;
+}
+
+.automation-status {
+  font-size: 0.84rem;
+  color: #335a84;
+  min-height: 18px;
+}
+
+.automation-run-details {
+  border: 1px solid #d6e4f7;
+  background: #f5f9ff;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.automation-run-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #204468;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.automation-rules {
+  border: 1px solid #d6e4f7;
+  background: #f8fbff;
+  border-radius: 10px;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.automation-rule-item {
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #dce8f8;
+  padding: 8px;
+  font-size: 0.84rem;
+  color: #204468;
+}
+
+.rule-actions {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  align-items: center;
+}

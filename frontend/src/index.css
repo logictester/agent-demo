@@ -1,0 +1,211 @@
+:root {
+  --bg-top: #f2f8ff;
+  --bg-bottom: #d8ebff;
+  --surface: #ffffff;
+  --ink: #0f223d;
+  --muted: #4f6685;
+  --primary: #1456d8;
+  --primary-strong: #0f46b3;
+  --accent: #07b89c;
+  --danger: #b32045;
+  --ring: rgba(20, 86, 216, 0.2);
+  --shadow: 0 20px 40px rgba(15, 34, 61, 0.12);
+  --radius-lg: 24px;
+  --radius-md: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Manrope", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 15% 20%, rgba(7, 184, 156, 0.16), transparent 35%),
+    radial-gradient(circle at 90% 0%, rgba(20, 86, 216, 0.18), transparent 38%),
+    linear-gradient(165deg, var(--bg-top), var(--bg-bottom));
+  overflow-x: hidden;
+}
+
+/* ── Layout ── */
+.shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 18px 40px;
+  display: grid;
+  gap: 18px;
+  animation: enter 0.7s ease-out both;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+}
+
+/* ── Card ── */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Buttons ── */
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-height: 40px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  line-height: 1;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.btn .material-symbols-outlined {
+  font-size: 18px;
+  margin-right: 6px;
+  font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 20;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-login {
+  background: #1456d8;
+}
+
+.btn-edit {
+  background: #64748b;
+}
+
+.btn-delete {
+  background: #b32045;
+}
+
+.btn-save {
+  background: #128a4a;
+}
+
+.btn-cancel {
+  background: #6b7280;
+}
+
+/* ── Utilities ── */
+.hidden {
+  display: none !important;
+}
+
+/* ── Toggle Switch ── */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #c2cbd8;
+  transition: 0.2s;
+  border-radius: 999px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 3px;
+  background-color: #fff;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+.switch input:checked + .slider {
+  background-color: #128a4a;
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+/* ── Modal backdrop ── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 34, 61, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.modal-card {
+  width: min(460px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #d6e4f7;
+  box-shadow: 0 18px 36px rgba(15, 34, 61, 0.2);
+  padding: 18px;
+}
+
+.modal-card h3 {
+  margin: 0 0 8px;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.modal-message {
+  margin: 0 0 14px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Keyframes ── */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
