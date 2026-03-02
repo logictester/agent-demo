@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Ollama } from "@langchain/community/llms/ollama";
+import { Ollama } from "@langchain/ollama";
 import { executeSecureTransfer, parseTransferInput } from "./tools.js";
 import { CAPABILITIES, POLICY, SYSTEM_PROMPT } from "./prompt.js";
 import {

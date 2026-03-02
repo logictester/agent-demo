@@ -1,4 +1,4 @@
-import { DynamicTool } from "langchain/tools";
+import { DynamicTool } from "@langchain/core/tools";
 import { v4 as uuidv4 } from "uuid";
 
 export function parseTransferInput(input) {

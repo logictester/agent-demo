@@ -2,7 +2,7 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Ollama } from "@langchain/community/llms/ollama";
+import { Ollama } from "@langchain/ollama";
 import { dbQuery, getDbPool } from "./db.js";
 import {
   applyTransferAndUpdateBalances,
