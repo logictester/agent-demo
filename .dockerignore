@@ -3,3 +3,5 @@
 .git
 npm-debug.log*
 backend/.env
+frontend/dist
+frontend/index.html.old

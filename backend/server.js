@@ -16,19 +16,20 @@ dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 const app = express();
 const port = Number(process.env.PORT) || 4000;
-const frontendDir = path.resolve(__dirname, "../frontend");
+const frontendDist = path.resolve(__dirname, "../frontend/dist");
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(frontendDir));
 
 app.use("/auth", authRoutes);
 app.use("/agent", agentRoutes);
 app.use("/delegation", delegationRoutes);
 app.use("/automation", automationRoutes);
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(frontendDir, "index.html"));
+// Serve Vite production build (run `npm run build` first)
+app.use(express.static(frontendDist));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendDist, "index.html"));
 });
 
 app.listen(port, () => console.log(`Server running on port ${port}`));
