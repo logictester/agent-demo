@@ -16,6 +16,19 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const router = express.Router();
+const frontendAppUrl = String(process.env.FRONTEND_APP_URL || "").trim();
+
+function toFrontendUrl(pathname = "/") {
+  const safePath = typeof pathname === "string" && pathname.startsWith("/") ? pathname : "/";
+  if (!frontendAppUrl) {
+    return safePath;
+  }
+  try {
+    return new URL(safePath, frontendAppUrl).toString();
+  } catch {
+    return safePath;
+  }
+}
 
 function encodeState(state) {
   return Buffer.from(JSON.stringify(state)).toString("base64url");
@@ -102,9 +115,6 @@ router.get("/callback", async (req, res) => {
         // Auth persistence should not block user login flow.
       }
     }
-    const safeToken = JSON.stringify(tokenData.access_token ?? "");
-    const safeIdToken = JSON.stringify(tokenData.id_token ?? "");
-    const safeRefreshToken = JSON.stringify(tokenData.refresh_token ?? "");
     let stepUpToken = "";
     let stepUpExp = 0;
 
@@ -115,21 +125,23 @@ router.get("/callback", async (req, res) => {
       stepUpExp = issued.exp;
     }
 
-    const safeStepUpToken = JSON.stringify(stepUpToken);
-    const safeStepUpExp = JSON.stringify(stepUpExp);
-    const safeReturnTo = JSON.stringify(returnTo);
+    const frontendReturnTo = toFrontendUrl(returnTo);
+    const redirectHash = new URLSearchParams({
+      access_token: tokenData.access_token ?? "",
+      id_token: tokenData.id_token ?? "",
+      refresh_token: tokenData.refresh_token ?? "",
+      stepup_ticket: isStepUp ? stepUpToken : "",
+      stepup_exp: isStepUp ? String(stepUpExp || "") : ""
+    }).toString();
+    const safeRedirectUrl = JSON.stringify(
+      String(frontendReturnTo).includes("#")
+        ? `${frontendReturnTo}&${redirectHash}`
+        : `${frontendReturnTo}#${redirectHash}`
+    );
 
     return res.send(`
       <script>
-        localStorage.setItem("access_token", ${safeToken});
-        localStorage.setItem("id_token", ${safeIdToken});
-        localStorage.setItem("refresh_token", ${safeRefreshToken});
-        if (${isStepUp ? "true" : "false"}) {
-          localStorage.setItem("helio.stepUpTicket", ${safeStepUpToken});
-          localStorage.setItem("helio.stepUpTicketExp", ${safeStepUpExp});
-          localStorage.setItem("helio.stepUpCompletedAt", String(Date.now()));
-        }
-        window.location.href = ${safeReturnTo};
+        window.location.href = ${safeRedirectUrl};
       </script>
     `);
   } catch (error) {
@@ -151,14 +163,7 @@ router.get("/logout", (req, res) => {
   const clearAndReturn = () =>
     res.send(`
       <script>
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("id_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("helio.stepUpTicket");
-        localStorage.removeItem("helio.stepUpTicketExp");
-        localStorage.removeItem("helio.pendingHighRiskTransfer");
-        localStorage.removeItem("helio.approvalTicket");
-        window.location.href = "/";
+        window.location.href = ${JSON.stringify(`${toFrontendUrl("/")}#logout=1`)};
       </script>
     `);
 
@@ -186,14 +191,7 @@ router.get("/logout", (req, res) => {
 router.get("/logout/callback", (req, res) => {
   return res.send(`
     <script>
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("id_token");
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("helio.stepUpTicket");
-      localStorage.removeItem("helio.stepUpTicketExp");
-      localStorage.removeItem("helio.pendingHighRiskTransfer");
-      localStorage.removeItem("helio.approvalTicket");
-      window.location.href = "/";
+      window.location.href = ${JSON.stringify(`${toFrontendUrl("/")}#logout=1`)};
     </script>
   `);
 });

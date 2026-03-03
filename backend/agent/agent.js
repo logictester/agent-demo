@@ -1507,13 +1507,15 @@ export async function runAgent(message, options = {}) {
 
     if (requestedAction === "list_rules") {
       await clearPendingAutomationDraft(draftKeys);
+      const formattedRules = rules.map((rule) => formatRuleForResponse(rule, { clientTimeZone, clientLocale }));
       const output = await synthesizeResponse(message, {
         status: rules.length ? "ok" : "not_found",
-        rules: rules.map((rule) => formatRuleForResponse(rule, { clientTimeZone, clientLocale }))
+        rules: formattedRules
       });
       return buildResult({
         decisionFlow: [...baseDecisionFlow, `Listed ${rules.length} automation rule(s).`],
         output,
+        automationRules: formattedRules,
         transfer: null,
         riskStatus: "Normal",
         requiresReauth: false,
@@ -1681,6 +1683,10 @@ export async function runAgent(message, options = {}) {
         enabled: true
       });
       await clearPendingAutomationDraft(draftKeys);
+      const refreshedRules = await listAutomationRules(userSub);
+      const formattedRules = refreshedRules.map((rule) =>
+        formatRuleForResponse(rule, { clientTimeZone, clientLocale })
+      );
       const output = await synthesizeResponse(message, {
         status: "updated",
         rule: formatRuleForResponse(updatedRule, { clientTimeZone, clientLocale })
@@ -1693,6 +1699,7 @@ export async function runAgent(message, options = {}) {
             "Applied latest prompt-provided configuration."
           ],
           output,
+          automationRules: formattedRules,
           transfer: null,
           riskStatus: "Normal",
           requiresReauth: false,
@@ -1721,6 +1728,10 @@ export async function runAgent(message, options = {}) {
             enabled: true
           });
           await clearPendingAutomationDraft(draftKeys);
+          const refreshedRules = await listAutomationRules(userSub);
+          const formattedRules = refreshedRules.map((rule) =>
+            formatRuleForResponse(rule, { clientTimeZone, clientLocale })
+          );
           const output = await synthesizeResponse(message, {
             status: "created",
             rule: formatRuleForResponse(createdRule, { clientTimeZone, clientLocale })
@@ -1733,6 +1744,7 @@ export async function runAgent(message, options = {}) {
                 `Created rule: ${createdRule.name}.`
               ],
               output,
+              automationRules: formattedRules,
               transfer: null,
               riskStatus: "Normal",
               requiresReauth: false,

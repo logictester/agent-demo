@@ -24,6 +24,7 @@ const monokeeIdvStartUrl = process.env.MONOKEE_IDV_START_URL || "";
 const monokeeStateSecret = process.env.MONOKEE_IDV_STATE_SECRET || "change-this-idv-state-secret";
 const monokeeStateTtlSeconds = Number(process.env.MONOKEE_IDV_STATE_TTL_SECONDS) || 900;
 const monokeeCallbackSecret = process.env.MONOKEE_IDV_CALLBACK_SECRET || "";
+const frontendAppUrl = String(process.env.FRONTEND_APP_URL || "").trim();
 
 function extractBearerToken(headerValue) {
   if (typeof headerValue !== "string") {
@@ -104,9 +105,12 @@ function normalizeStatus(rawStatus) {
 
 function buildReturnUrl(returnTo, status) {
   const base = typeof returnTo === "string" && returnTo.startsWith("/") ? returnTo : "/";
-  const url = new URL(`http://local${base}`);
+  const url = new URL(base, frontendAppUrl || "http://local");
   url.searchParams.set("idv_status", status);
-  return `${url.pathname}${url.search}`;
+  if (!frontendAppUrl) {
+    return `${url.pathname}${url.search}`;
+  }
+  return url.toString();
 }
 
 router.get("/options", (req, res) => {

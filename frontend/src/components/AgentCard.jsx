@@ -9,6 +9,7 @@ export default function AgentCard({ onSessionExpired }) {
   const {
     account, setAccount,
     setTransactions, transactions,
+    setAutomationRules,
     loadFinancialState, loadAuthorizationEvents,
     loadAutomationRules, loadPendingApprovals,
     canManageAutomations,
@@ -24,7 +25,7 @@ export default function AgentCard({ onSessionExpired }) {
   const [sending, setSending] = useState(false);
   const inputRef = useRef(null);
 
-  async function send(messageOverride) {
+  async function send(messageOverride, options = {}) {
     const msg = String(
       messageOverride != null ? messageOverride : message
     ).trim();
@@ -56,7 +57,8 @@ export default function AgentCard({ onSessionExpired }) {
       if (locale) headers["X-Client-Locale"] = locale;
       const stepUp = getValidStepUpTicket();
       if (stepUp) headers["X-Step-Up-Ticket"] = stepUp;
-      const approval = localStorage.getItem(STORAGE_KEYS.approvalTicket);
+      const explicitApprovalTicket = String(options.approvalTicket || "").trim();
+      const approval = explicitApprovalTicket || localStorage.getItem(STORAGE_KEYS.approvalTicket);
       if (approval) headers["X-Approval-Ticket"] = approval;
 
       const data = await api.sendAgentMessage(msg, headers);
@@ -73,6 +75,9 @@ export default function AgentCard({ onSessionExpired }) {
       }
       if (data.transactionHistory) {
         setTransactions(Array.isArray(data.transactionHistory) ? data.transactionHistory : []);
+      }
+      if (Array.isArray(data.automationRules)) {
+        setAutomationRules(data.automationRules);
       }
       if (data.interactionStats) {
         setAccount((a) => ({
@@ -92,8 +97,11 @@ export default function AgentCard({ onSessionExpired }) {
       if (!data.requiresApproval && data.intent !== "transfer_funds") {
         localStorage.removeItem(STORAGE_KEYS.approvalTicket);
       }
+      if (data.requiresApproval && data.approvalTicket) {
+        localStorage.setItem(STORAGE_KEYS.approvalTicket, String(data.approvalTicket));
+      }
 
-      if (data.intent === "manage_automations" && canManageAutomations()) {
+      if (data.intent === "manage_automations") {
         await loadAutomationRules();
       }
       await loadAuthorizationEvents();
@@ -124,9 +132,10 @@ export default function AgentCard({ onSessionExpired }) {
 
   function handleApproveNow(approvalTicket) {
     api.approveOperation(approvalTicket).then(() => {
+      localStorage.setItem(STORAGE_KEYS.approvalTicket, String(approvalTicket));
       loadPendingApprovals();
       const lastMsg = localStorage.getItem(STORAGE_KEYS.lastMessage) || message;
-      send(lastMsg);
+      send(lastMsg, { approvalTicket });
     }).catch((err) => {
       setResponse({ text: `Error: ${err.message}`, isError: true, payload: null });
     });

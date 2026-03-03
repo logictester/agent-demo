@@ -116,6 +116,7 @@ router.post("/", async (req, res) => {
       requiresApproval: Boolean(result.requiresApproval),
       approvalTicket: result.approvalTicket || null,
       approvalPrompt: result.approvalPrompt || null,
+      automationRules: Array.isArray(result.automationRules) ? result.automationRules : null,
       balances: result.balances || updatedFinancialState?.balances || financialState?.balances || null,
       transactionHistory:
         result.transactionHistory || updatedFinancialState?.transactionHistory || financialState?.transactionHistory || [],

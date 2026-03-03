@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useApp } from "../context/AppContext";
+import { useApp, STORAGE_KEYS } from "../context/AppContext";
 import { formatCurrency, formatRunTimestamp } from "../utils/format";
 import * as api from "../api/client";
 import AutomationRulesList from "./AutomationRulesList";
@@ -130,6 +130,7 @@ export default function SettingsModal({ open, onClose }) {
   async function approvePending(approvalId) {
     try {
       await api.approveOperation(approvalId);
+      localStorage.setItem(STORAGE_KEYS.approvalTicket, String(approvalId));
       setDelegationMsg("Approval submitted. Re-run the operation prompt to execute.");
       await loadPendingApprovals();
       await loadAuthorizationEvents();

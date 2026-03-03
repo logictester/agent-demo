@@ -95,6 +95,44 @@ function getAutomationExecutionType(tx) {
   return null;
 }
 
+function consumeAuthRedirectHash() {
+  const hash = String(window.location.hash || "").replace(/^#/, "").trim();
+  if (!hash) return false;
+  const params = new URLSearchParams(hash);
+  const shouldLogout = params.get("logout") === "1";
+  const accessToken = params.get("access_token");
+  const idToken = params.get("id_token");
+  const refreshToken = params.get("refresh_token");
+  const stepUpTicket = params.get("stepup_ticket");
+  const stepUpExp = params.get("stepup_exp");
+  const hasAuthPayload = Boolean(accessToken || idToken || refreshToken || stepUpTicket || shouldLogout);
+
+  if (!hasAuthPayload) return false;
+
+  if (shouldLogout) {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("id_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem(STORAGE_KEYS.stepUpTicket);
+    localStorage.removeItem(STORAGE_KEYS.stepUpTicketExp);
+    localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
+    localStorage.removeItem(STORAGE_KEYS.approvalTicket);
+  } else {
+    if (accessToken) localStorage.setItem("access_token", accessToken);
+    if (idToken) localStorage.setItem("id_token", idToken);
+    if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
+    if (stepUpTicket && stepUpExp) {
+      localStorage.setItem(STORAGE_KEYS.stepUpTicket, stepUpTicket);
+      localStorage.setItem(STORAGE_KEYS.stepUpTicketExp, stepUpExp);
+    }
+  }
+
+  const url = new URL(window.location.href);
+  url.hash = "";
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}`);
+  return true;
+}
+
 export { STORAGE_KEYS, decodeJwtClaims, getValidStepUpTicket, getSessionSecondsRemaining, resolveDisplayName, readQuestionHistory, getOperationSource, getAutomationExecutionType };
 
 export function AppProvider({ children }) {
@@ -300,6 +338,7 @@ export function AppProvider({ children }) {
 
   /* ── Initial load ── */
   useEffect(() => {
+    consumeAuthRedirectHash();
     loadDelegationOptions();
     loadDelegationStatus().then(() => loadPendingApprovals());
     loadFinancialState();
