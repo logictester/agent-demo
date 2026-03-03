@@ -7,7 +7,7 @@ import "./RecentActivity.css";
 const PAGE_SIZE = 6;
 
 export default function RecentActivity() {
-  const { transactions, loadFinancialState } = useApp();
+  const { transactions, loadFinancialState, isAuthenticated } = useApp();
   const [page, setPage] = useState(1);
 
   const items = Array.isArray(transactions) ? transactions : [];
@@ -22,13 +22,20 @@ export default function RecentActivity() {
     <aside className="card side-card">
       <div className="side-card-header">
         <h3>Recent Activity</h3>
-        <button className="btn btn-edit" onClick={loadFinancialState}>
-          <span className="material-symbols-outlined">refresh</span>Refresh
-        </button>
+        {isAuthenticated && (
+          <button className="btn btn-edit" onClick={loadFinancialState}>
+            <span className="material-symbols-outlined">refresh</span>Refresh
+          </button>
+        )}
       </div>
 
       <div className="tx">
-        {!pageItems.length ? (
+        {!isAuthenticated ? (
+          <div className="tx-item tx-auth-note">
+            <span>Please authenticate to view recent activity.</span>
+            <span></span>
+          </div>
+        ) : !pageItems.length ? (
           <div className="tx-item">
             <span>No activity yet</span>
             <span></span>
@@ -67,25 +74,27 @@ export default function RecentActivity() {
         )}
       </div>
 
-      <div className="tx-pagination">
-        <button
-          className="btn btn-edit"
-          disabled={currentPage <= 1}
-          onClick={() => setPage((p) => p - 1)}
-        >
-          <span className="material-symbols-outlined">chevron_left</span>Prev
-        </button>
-        <span className="tx-page-label">
-          Page {currentPage} of {totalPages}
-        </span>
-        <button
-          className="btn btn-edit"
-          disabled={currentPage >= totalPages}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          <span className="material-symbols-outlined">chevron_right</span>Next
-        </button>
-      </div>
+      {isAuthenticated && (
+        <div className="tx-pagination">
+          <button
+            className="btn btn-edit"
+            disabled={currentPage <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            <span className="material-symbols-outlined">chevron_left</span>Prev
+          </button>
+          <span className="tx-page-label">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            className="btn btn-edit"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            <span className="material-symbols-outlined">chevron_right</span>Next
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

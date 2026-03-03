@@ -4,15 +4,13 @@ import { fileURLToPath } from "url";
 import { Ollama } from "@langchain/ollama";
 import { executeSecureTransfer, parseTransferInput } from "./tools.js";
 import { CAPABILITIES, POLICY, SYSTEM_PROMPT } from "./prompt.js";
+import { callMcpTool } from "../mcp/client.js";
 import {
   applyTransferAndUpdateBalances,
   createOperationApproval,
   createTransferRecord,
-  getLastTransfer,
-  getTransactionHistory,
   verifyApprovedOperation
 } from "../services/delegation.js";
-import { createAutomationRule, listAutomationRules, runAutomationRuleNow, updateAutomationRule } from "../services/automation.js";
 import { clearTaskContext, getTaskContext, upsertTaskContext } from "../services/taskContext.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -35,6 +33,60 @@ const AGENT_PLAN_MAX_STEPS = Math.max(2, Number(process.env.AGENT_PLAN_MAX_STEPS
 const OOB_APPROVAL_ENABLED = String(process.env.OOB_APPROVAL_ENABLED || "true").toLowerCase() !== "false";
 const OOB_APPROVAL_TTL_SECONDS = Math.max(60, Number(process.env.OOB_APPROVAL_TTL_SECONDS) || 600);
 const pendingAutomationDrafts = new Map();
+
+async function mcpListAutomationRules(sub) {
+  try {
+    const result = await callMcpTool("list_automation_rules", { sub });
+    return Array.isArray(result?.rules) ? result.rules : [];
+  } catch {
+    return [];
+  }
+}
+
+async function mcpCreateAutomationRule(sub, rule) {
+  const result = await callMcpTool("create_automation_rule", { sub, rule });
+  return result?.rule || null;
+}
+
+async function mcpUpdateAutomationRule(sub, ruleId, patch) {
+  const result = await callMcpTool("update_automation_rule", { sub, ruleId, patch });
+  return result?.rule || null;
+}
+
+async function mcpRunAutomationRule(sub, ruleId, highRiskThreshold) {
+  const args = { sub, ruleId };
+  if (Number.isFinite(Number(highRiskThreshold))) {
+    args.highRiskThreshold = Number(highRiskThreshold);
+  }
+  const result = await callMcpTool("run_automation_rule", args);
+  return result?.result || null;
+}
+
+async function mcpGetLastTransfer(sub) {
+  try {
+    const result = await callMcpTool("get_last_transfer", { sub });
+    return result?.lastTransfer || null;
+  } catch {
+    return null;
+  }
+}
+
+async function mcpGetTransactionHistory(sub, limit = 10) {
+  try {
+    const result = await callMcpTool("get_transaction_history", { sub, limit });
+    return Array.isArray(result?.history) ? result.history : [];
+  } catch {
+    return [];
+  }
+}
+
+async function mcpGetPolicy() {
+  return callMcpTool("get_policy", {
+    mediumRiskThreshold: Number(POLICY.mediumRiskTransferThreshold),
+    highRiskThreshold: Number(POLICY.highRiskTransferThreshold),
+    oobApprovalEnabled: Boolean(OOB_APPROVAL_ENABLED)
+  });
+}
 
 function extractJsonObject(text) {
   const source = String(text || "").trim();
@@ -1055,8 +1107,8 @@ export async function runAgent(message, options = {}) {
   const clientTimeZone = options.clientTimeZone || "";
   const clientLocale = options.clientLocale || "";
   const delegation = options.delegation || { idvVerified: false, delegatedOperations: [] };
-  const lastTransfer = userSub ? await getLastTransfer(userSub) : null;
-  const recentTransactions = userSub ? await getTransactionHistory(userSub, 5) : [];
+  const lastTransfer = userSub ? await mcpGetLastTransfer(userSub) : null;
+  const recentTransactions = userSub ? await mcpGetTransactionHistory(userSub, 5) : [];
 
   const context = {
     policy: POLICY,
@@ -1366,7 +1418,7 @@ export async function runAgent(message, options = {}) {
       stepUpVerified,
       details: transfer
     });
-    const updatedHistory = await getTransactionHistory(userSub, 8);
+    const updatedHistory = await mcpGetTransactionHistory(userSub, 8);
 
     const output = await synthesizeResponse(message, {
       status: transfer.status,
@@ -1437,7 +1489,7 @@ export async function runAgent(message, options = {}) {
   }
 
   if (intentPayload.intent === "view_transaction_history") {
-    const history = await getTransactionHistory(userSub, 10);
+    const history = await mcpGetTransactionHistory(userSub, 10);
     const output = await synthesizeResponse(message, {
       status: history.length ? "ok" : "not_found",
       transactionHistory: history
@@ -1472,7 +1524,7 @@ export async function runAgent(message, options = {}) {
         baseUrl: ollamaBaseUrl
       });
     }
-    const rules = await listAutomationRules(userSub);
+    const rules = await mcpListAutomationRules(userSub);
     const pending = await getPendingAutomationDraft(draftKeys);
     const parsed = await parseAutomationRequestWithAi(message, {
       intentArgs: intentPayload.args,
@@ -1549,9 +1601,23 @@ export async function runAgent(message, options = {}) {
         });
       }
 
-      const execution = await runAutomationRuleNow(userSub, targetRule.id, {
-        highRiskThreshold: POLICY.highRiskTransferThreshold
-      });
+      const execution = await mcpRunAutomationRule(
+        userSub,
+        targetRule.id,
+        Number(POLICY.highRiskTransferThreshold)
+      );
+      if (!execution || typeof execution !== "object") {
+        return buildResult({
+          decisionFlow: [...baseDecisionFlow, "Automation run failed: MCP returned no result."],
+          output: "Automation execution failed. Please try again.",
+          transfer: null,
+          riskStatus: "Normal",
+          requiresReauth: false,
+          source: "ollama",
+          model: ollamaModel,
+          baseUrl: ollamaBaseUrl
+        });
+      }
       const output = await synthesizeResponse(message, {
         status: execution.status,
         execution,
@@ -1670,7 +1736,7 @@ export async function runAgent(message, options = {}) {
         });
       }
 
-      const updatedRule = await updateAutomationRule(userSub, targetRule.id, {
+      const updatedRule = await mcpUpdateAutomationRule(userSub, targetRule.id, {
         name: mergedDraft.name || targetRule.name,
         transferAmount: mergedDraft.transferAmount,
         minAvailableBalance: mergedDraft.minAvailableBalance,
@@ -1682,8 +1748,20 @@ export async function runAgent(message, options = {}) {
         adaptiveConfig: mergedDraft.adaptiveConfig,
         enabled: true
       });
+      if (!updatedRule) {
+        return buildResult({
+          decisionFlow: [...baseDecisionFlow, "Automation update failed: MCP returned no updated rule."],
+          output: "Failed to update automation rule.",
+          transfer: null,
+          riskStatus: "Normal",
+          requiresReauth: false,
+          source: "ollama",
+          model: ollamaModel,
+          baseUrl: ollamaBaseUrl
+        });
+      }
       await clearPendingAutomationDraft(draftKeys);
-      const refreshedRules = await listAutomationRules(userSub);
+      const refreshedRules = await mcpListAutomationRules(userSub);
       const formattedRules = refreshedRules.map((rule) =>
         formatRuleForResponse(rule, { clientTimeZone, clientLocale })
       );
@@ -1715,7 +1793,7 @@ export async function runAgent(message, options = {}) {
       if (pending?.stage === "confirm_create") {
         if (isAffirmativeResponse(message)) {
           const finalizedDraft = pending?.draft || mergedDraft;
-          const createdRule = await createAutomationRule(userSub, {
+          const createdRule = await mcpCreateAutomationRule(userSub, {
             name: finalizedDraft.name || `Rule ${new Date().toLocaleDateString()}`,
             transferAmount: finalizedDraft.transferAmount,
             minAvailableBalance: finalizedDraft.minAvailableBalance,
@@ -1727,8 +1805,20 @@ export async function runAgent(message, options = {}) {
             adaptiveConfig: finalizedDraft.adaptiveConfig,
             enabled: true
           });
+          if (!createdRule) {
+            return buildResult({
+              decisionFlow: [...baseDecisionFlow, "Automation create failed: MCP returned no created rule."],
+              output: "Failed to create automation rule.",
+              transfer: null,
+              riskStatus: "Normal",
+              requiresReauth: false,
+              source: "ollama",
+              model: ollamaModel,
+              baseUrl: ollamaBaseUrl
+            });
+          }
           await clearPendingAutomationDraft(draftKeys);
-          const refreshedRules = await listAutomationRules(userSub);
+          const refreshedRules = await mcpListAutomationRules(userSub);
           const formattedRules = refreshedRules.map((rule) =>
             formatRuleForResponse(rule, { clientTimeZone, clientLocale })
           );
@@ -1791,14 +1881,23 @@ export async function runAgent(message, options = {}) {
   }
 
   if (intentPayload.intent === "explain_policy") {
+    let policyFacts = null;
+    try {
+      policyFacts = await mcpGetPolicy();
+    } catch {
+      policyFacts = null;
+    }
     const output = await synthesizeResponse(message, {
-      policy: {
-        riskLevels: POLICY.riskLevels,
-        mediumRiskThreshold: POLICY.mediumRiskTransferThreshold,
-        highRiskThreshold: POLICY.highRiskTransferThreshold,
-        stepUpRequired: true,
-        outOfBandApprovalRequiredForHighRisk: OOB_APPROVAL_ENABLED
-      }
+      policy:
+        policyFacts && typeof policyFacts === "object"
+          ? policyFacts
+          : {
+              riskLevels: POLICY.riskLevels,
+              mediumRiskThreshold: POLICY.mediumRiskTransferThreshold,
+              highRiskThreshold: POLICY.highRiskTransferThreshold,
+              stepUpRequired: true,
+              outOfBandApprovalRequiredForHighRisk: OOB_APPROVAL_ENABLED
+            }
     });
     return buildResult({
       decisionFlow: [...baseDecisionFlow, "Returned configured transfer policy and risk levels."],

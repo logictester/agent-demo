@@ -37,6 +37,12 @@
   font-size: 0.92rem;
 }
 
+.tx-auth-note {
+  align-items: center;
+  color: #284668;
+  font-weight: 600;
+}
+
 .tx-item span:last-child {
   font-weight: 800;
 }

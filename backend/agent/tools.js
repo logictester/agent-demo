@@ -1,5 +1,6 @@
 import { DynamicTool } from "@langchain/core/tools";
 import { v4 as uuidv4 } from "uuid";
+import { callMcpTool } from "../mcp/client.js";
 
 export function parseTransferInput(input) {
   if (input && typeof input === "object") {
@@ -77,7 +78,17 @@ export async function executeSecureTransfer(input) {
   const { amount, toAccount } = parsed;
   const fromAccount = parsed.fromAccount || null;
 
-  console.log("Executing transfer:", amount, fromAccount, "->", toAccount);
+  try {
+    const mcpResult = await callMcpTool("secure_transfer", { amount, toAccount, fromAccount });
+    if (mcpResult && typeof mcpResult === "object") {
+      return JSON.stringify(mcpResult);
+    }
+  } catch (error) {
+    const reason = error?.message || "unknown";
+    console.warn(`[mcp] secure_transfer fallback to local execution: ${reason}`);
+  }
+
+  console.log("Executing transfer (local fallback):", amount, fromAccount, "->", toAccount);
 
   return JSON.stringify({
     transactionId: uuidv4(),

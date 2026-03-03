@@ -136,7 +136,9 @@ function consumeAuthRedirectHash() {
 export { STORAGE_KEYS, decodeJwtClaims, getValidStepUpTicket, getSessionSecondsRemaining, resolveDisplayName, readQuestionHistory, getOperationSource, getAutomationExecutionType };
 
 export function AppProvider({ children }) {
-  const isAuthenticated = Boolean(localStorage.getItem("access_token"));
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    Boolean(localStorage.getItem("access_token"))
+  );
 
   const [account, setAccount] = useState({
     availableBalance: 24982.14,
@@ -339,9 +341,11 @@ export function AppProvider({ children }) {
   /* ── Initial load ── */
   useEffect(() => {
     consumeAuthRedirectHash();
+    setIsAuthenticated(Boolean(localStorage.getItem("access_token")));
     loadDelegationOptions();
     loadDelegationStatus().then(() => loadPendingApprovals());
     loadFinancialState();
+    loadAutomationRules();
     loadAuthorizationEvents();
 
     api.getSessionConfig().then((data) => {

@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { resolveDisplayName } from "../context/AppContext";
+import { useApp, resolveDisplayName } from "../context/AppContext";
 import "./Header.css";
 
 export default function Header({ onOpenSettings }) {
+  const { isAuthenticated } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const panelRef = useRef(null);
   const buttonRef = useRef(null);
 
-  const token = localStorage.getItem("access_token");
-  const displayName = resolveDisplayName();
+  const token = isAuthenticated ? localStorage.getItem("access_token") : "";
+  const displayName = isAuthenticated ? resolveDisplayName() : "Guest User";
 
   useEffect(() => {
     function handleClick(e) {

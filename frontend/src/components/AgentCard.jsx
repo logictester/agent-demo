@@ -24,6 +24,7 @@ export default function AgentCard({ onSessionExpired }) {
   });
   const [sending, setSending] = useState(false);
   const inputRef = useRef(null);
+  const resumedPendingRef = useRef(false);
 
   async function send(messageOverride, options = {}) {
     const msg = String(
@@ -130,6 +131,56 @@ export default function AgentCard({ onSessionExpired }) {
     localStorage.removeItem(STORAGE_KEYS.lastResponse);
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    const tryResumePending = () => {
+      if (cancelled || resumedPendingRef.current || sending) {
+        return;
+      }
+      const pendingRaw = localStorage.getItem(STORAGE_KEYS.pendingHighRiskTransfer);
+      if (!pendingRaw) {
+        return;
+      }
+      const token = localStorage.getItem("access_token");
+      const stepUpTicket = getValidStepUpTicket();
+      if (!token || !stepUpTicket) {
+        return;
+      }
+
+      let pendingMessage = "";
+      try {
+        const pending = JSON.parse(pendingRaw);
+        pendingMessage = String(pending?.message || "").trim();
+      } catch {
+        pendingMessage = "";
+      }
+      if (!pendingMessage) {
+        pendingMessage = String(localStorage.getItem(STORAGE_KEYS.lastMessage) || "").trim();
+      }
+
+      localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
+      resumedPendingRef.current = true;
+
+      if (!pendingMessage) {
+        return;
+      }
+
+      setResponse({
+        text: "Re-authentication completed. Continuing your pending high-risk transfer...",
+        isError: false,
+        payload: null
+      });
+      send(pendingMessage);
+    };
+
+    tryResumePending();
+    const id = setInterval(tryResumePending, 800);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [sending]);
+
   function handleApproveNow(approvalTicket) {
     api.approveOperation(approvalTicket).then(() => {
       localStorage.setItem(STORAGE_KEYS.approvalTicket, String(approvalTicket));
@@ -230,7 +281,9 @@ export default function AgentCard({ onSessionExpired }) {
             <button
               className="btn btn-login"
               onClick={() => {
-                const msg = message.trim();
+                const msg =
+                  String(localStorage.getItem(STORAGE_KEYS.lastMessage) || "").trim() ||
+                  message.trim();
                 localStorage.setItem(
                   STORAGE_KEYS.pendingHighRiskTransfer,
                   JSON.stringify({ message: msg, createdAt: Date.now() })

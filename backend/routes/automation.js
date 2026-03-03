@@ -1,12 +1,6 @@
 import express from "express";
 import { getUserInfo } from "../services/onewelcome.js";
-import {
-  createAutomationRule,
-  deleteAutomationRule,
-  listAutomationRules,
-  updateAutomationRule,
-  runAutomationRuleNow
-} from "../services/automation.js";
+import { callMcpTool } from "../mcp/client.js";
 
 const router = express.Router();
 
@@ -39,8 +33,12 @@ router.get("/rules", async (req, res) => {
     return res.status(401).json({ error: "Authentication required" });
   }
 
-  const rules = await listAutomationRules(user.sub);
-  return res.json({ rules });
+  try {
+    const result = await callMcpTool("list_automation_rules", { sub: user.sub });
+    return res.json({ rules: Array.isArray(result?.rules) ? result.rules : [] });
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || "Failed to list automation rules" });
+  }
 });
 
 router.post("/rules", async (req, res) => {
@@ -50,7 +48,11 @@ router.post("/rules", async (req, res) => {
   }
 
   try {
-    const rule = await createAutomationRule(user.sub, req.body || {});
+    const result = await callMcpTool("create_automation_rule", { sub: user.sub, rule: req.body || {} });
+    const rule = result?.rule || null;
+    if (!rule) {
+      return res.status(500).json({ error: "Failed to create automation rule" });
+    }
     return res.status(201).json({ rule });
   } catch (error) {
     const code = String(error?.message || "");
@@ -81,8 +83,12 @@ router.post("/rules/:id/run", async (req, res) => {
     return res.status(400).json({ error: "Rule id is required" });
   }
 
-  const result = await runAutomationRuleNow(user.sub, ruleId);
-  return res.json({ result });
+  try {
+    const runResult = await callMcpTool("run_automation_rule", { sub: user.sub, ruleId });
+    return res.json({ result: runResult?.result || null });
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || "Failed to run automation rule" });
+  }
 });
 
 router.put("/rules/:id", async (req, res) => {
@@ -97,7 +103,12 @@ router.put("/rules/:id", async (req, res) => {
   }
 
   try {
-    const rule = await updateAutomationRule(user.sub, ruleId, req.body || {});
+    const result = await callMcpTool("update_automation_rule", {
+      sub: user.sub,
+      ruleId,
+      patch: req.body || {}
+    });
+    const rule = result?.rule || null;
     if (!rule) {
       return res.status(404).json({ error: "Rule not found" });
     }
@@ -131,11 +142,16 @@ router.delete("/rules/:id", async (req, res) => {
     return res.status(400).json({ error: "Rule id is required" });
   }
 
-  const deleted = await deleteAutomationRule(user.sub, ruleId);
-  if (!deleted) {
-    return res.status(404).json({ error: "Rule not found" });
+  try {
+    const result = await callMcpTool("delete_automation_rule", { sub: user.sub, ruleId });
+    const deleted = Boolean(result?.deleted);
+    if (!deleted) {
+      return res.status(404).json({ error: "Rule not found" });
+    }
+    return res.json({ message: "Rule deleted" });
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || "Failed to delete automation rule" });
   }
-  return res.json({ message: "Rule deleted" });
 });
 
 export default router;

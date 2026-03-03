@@ -36,6 +36,15 @@
   line-height: 1.35;
 }
 
+.auth-note {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, #f8fbff, #eef5ff);
+  color: #284668;
+  font-weight: 600;
+}
+
 .stat-row {
   margin-top: 12px;
   display: grid;
