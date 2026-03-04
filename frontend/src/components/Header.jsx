@@ -3,7 +3,7 @@ import { useApp, resolveDisplayName } from "../context/AppContext";
 import "./Header.css";
 
 export default function Header({ onOpenSettings }) {
-  const { isAuthenticated } = useApp();
+  const { isAuthenticated, theme, toggleTheme } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const panelRef = useRef(null);
   const buttonRef = useRef(null);
@@ -61,6 +61,37 @@ export default function Header({ onOpenSettings }) {
               <span className={`status-pill ${token ? "" : "offline"}`}>
                 {token ? "Authenticated" : "Not Signed In"}
               </span>
+            </div>
+            <div className="menu-theme-row">
+              <span className="theme-label">
+                {theme === "dark" ? "Dark mode" : "Light mode"}
+              </span>
+              <div className="theme-toggle-group">
+              <span
+                className={`material-symbols-outlined theme-icon ${
+                  theme === "dark" ? "" : "active"
+                }`}
+                aria-hidden="true"
+              >
+                light_mode
+              </span>
+              <label className="switch" aria-label="Toggle dark mode">
+                <input
+                  type="checkbox"
+                  checked={theme === "dark"}
+                  onChange={toggleTheme}
+                />
+                <span className="slider" />
+              </label>
+              <span
+                className={`material-symbols-outlined theme-icon ${
+                  theme === "dark" ? "active" : ""
+                }`}
+                aria-hidden="true"
+              >
+                dark_mode
+              </span>
+              </div>
             </div>
             <button
               className="menu-item btn btn-edit"

@@ -84,6 +84,39 @@
   margin-bottom: 10px;
 }
 
+.menu-theme-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 2px;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.theme-label {
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.theme-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.theme-icon {
+  font-size: 20px;
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.theme-icon.active {
+  color: var(--ink);
+}
+
 .status-pill {
   padding: 7px 12px;
   border-radius: 999px;

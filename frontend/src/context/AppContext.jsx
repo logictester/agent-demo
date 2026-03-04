@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   stepUpTicket: "helio.stepUpTicket",
   stepUpTicketExp: "helio.stepUpTicketExp",
   approvalTicket: "helio.approvalTicket",
+  theme: "helio.theme",
 };
 
 const AppContext = createContext(null);
@@ -170,6 +171,10 @@ export function AppProvider({ children }) {
   const [automationRules, setAutomationRules] = useState([]);
   const [sessionWarningSeconds, setSessionWarningSeconds] = useState(120);
   const [questionHistory, setQuestionHistory] = useState(readQuestionHistory);
+  const [theme, setTheme] = useState(() => {
+    const stored = String(localStorage.getItem(STORAGE_KEYS.theme) || "").toLowerCase();
+    return stored === "dark" ? "dark" : "light";
+  });
 
   /* ── Confirm modal ── */
   const [confirmModal, setConfirmModal] = useState(null);
@@ -338,6 +343,10 @@ export function AppProvider({ children }) {
     });
   }, []);
 
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  }, []);
+
   /* ── Initial load ── */
   useEffect(() => {
     consumeAuthRedirectHash();
@@ -362,6 +371,13 @@ export function AppProvider({ children }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const nextTheme = theme === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", nextTheme);
+    document.documentElement.style.colorScheme = nextTheme;
+    localStorage.setItem(STORAGE_KEYS.theme, nextTheme);
+  }, [theme]);
+
   const value = {
     account, setAccount,
     transactions, setTransactions,
@@ -377,6 +393,7 @@ export function AppProvider({ children }) {
     loadPendingApprovals, loadAutomationRules,
     STORAGE_KEYS,
     isAuthenticated,
+    theme, setTheme, toggleTheme,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

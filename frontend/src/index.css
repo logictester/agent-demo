@@ -12,6 +12,44 @@
   --shadow: 0 20px 40px rgba(15, 34, 61, 0.12);
   --radius-lg: 24px;
   --radius-md: 14px;
+  --overlay-top: rgba(8, 20, 36, 0.55);
+  --overlay-bottom: rgba(8, 20, 36, 0.35);
+  --modal-surface: #ffffff;
+  --modal-border: #d6e4f7;
+  --panel-surface: #ffffff;
+  --panel-border: #d6e4f7;
+  --soft-surface: #f7faff;
+  --soft-surface-2: #f1f7ff;
+  --field-bg: #ffffff;
+  --field-border: #cfdbed;
+  --field-text: #0f223d;
+  --item-border: #dce8f8;
+  --link-accent: #1456d8;
+  --overlay-modal: rgba(15, 34, 61, 0.5);
+  --switch-track: #c2cbd8;
+}
+
+:root[data-theme="dark"] {
+  --surface: #101a2b;
+  --ink: #e6eefb;
+  --muted: #9fb2cf;
+  --ring: rgba(98, 156, 255, 0.25);
+  --shadow: 0 20px 40px rgba(2, 8, 23, 0.45);
+  --overlay-top: rgba(2, 9, 18, 0.78);
+  --overlay-bottom: rgba(2, 9, 18, 0.64);
+  --modal-surface: #121f33;
+  --modal-border: #26364f;
+  --panel-surface: #121f33;
+  --panel-border: #26364f;
+  --soft-surface: #17263b;
+  --soft-surface-2: #1d2f48;
+  --field-bg: #111f33;
+  --field-border: #2a3b57;
+  --field-text: #e6eefb;
+  --item-border: #2b3d5a;
+  --link-accent: #7eb1ff;
+  --overlay-modal: rgba(2, 8, 23, 0.65);
+  --switch-track: #3a4c69;
 }
 
 * {
@@ -24,7 +62,7 @@ body {
   font-family: "Manrope", sans-serif;
   color: var(--ink);
   background:
-    linear-gradient(rgba(8, 20, 36, 0.55), rgba(8, 20, 36, 0.35)),
+    linear-gradient(var(--overlay-top), var(--overlay-bottom)),
     url("https://productpod-bfsi-deployment.in.tryciam.onewelcome.net/training/login/ui/resources/theme/img/thales-bg.png")
       center center / cover no-repeat fixed;
   overflow-x: hidden;
@@ -128,7 +166,7 @@ body {
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background-color: #c2cbd8;
+  background-color: var(--switch-track);
   transition: 0.2s;
   border-radius: 999px;
 }
@@ -157,7 +195,7 @@ body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 34, 61, 0.5);
+  background: var(--overlay-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -167,11 +205,101 @@ body {
 
 .modal-card {
   width: min(460px, 100%);
-  background: #fff;
+  background: var(--modal-surface);
   border-radius: 16px;
-  border: 1px solid #d6e4f7;
+  border: 1px solid var(--modal-border);
   box-shadow: 0 18px 36px rgba(15, 34, 61, 0.2);
   padding: 18px;
+}
+
+:root[data-theme="dark"] .card {
+  border: 1px solid rgba(140, 165, 204, 0.2);
+}
+
+:root[data-theme="dark"] .user-menu-panel {
+  background: var(--panel-surface);
+  border-color: var(--panel-border);
+}
+
+:root[data-theme="dark"] .user-menu-panel .menu-theme-row,
+:root[data-theme="dark"] .user-menu-panel .menu-title {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .tx-item,
+:root[data-theme="dark"] .stat,
+:root[data-theme="dark"] .auth-note {
+  background: var(--soft-surface);
+  color: var(--ink);
+}
+
+/* Dark mode: forms and lists */
+:root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  background: var(--field-bg) !important;
+  border-color: var(--field-border) !important;
+  color: var(--field-text) !important;
+}
+
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .prompt-hints,
+:root[data-theme="dark"] .response,
+:root[data-theme="dark"] .delegation-option,
+:root[data-theme="dark"] .delegation-status,
+:root[data-theme="dark"] .operations-list,
+:root[data-theme="dark"] .automation-rules,
+:root[data-theme="dark"] .automation-run-details,
+:root[data-theme="dark"] .auth-event-item,
+:root[data-theme="dark"] .tx-item {
+  background: var(--soft-surface) !important;
+  border-color: var(--field-border) !important;
+  color: var(--ink) !important;
+}
+
+:root[data-theme="dark"] .automation-rule-item,
+:root[data-theme="dark"] .operations-item {
+  background: var(--soft-surface-2) !important;
+  border-color: var(--item-border) !important;
+  color: var(--ink) !important;
+}
+
+:root[data-theme="dark"] .response.error {
+  background: #3a1e2a !important;
+  border-color: #7a3b52 !important;
+  color: #ffd6e3 !important;
+}
+
+:root[data-theme="dark"] .response-meta,
+:root[data-theme="dark"] .flow-title,
+:root[data-theme="dark"] .flow-step,
+:root[data-theme="dark"] .tx-time,
+:root[data-theme="dark"] .rule-toggle-label,
+:root[data-theme="dark"] .automation-status,
+:root[data-theme="dark"] .tx-page-label {
+  color: var(--muted) !important;
+}
+
+:root[data-theme="dark"] .tx-source {
+  color: var(--link-accent) !important;
+}
+
+:root[data-theme="dark"] .status-pill {
+  background: rgba(7, 184, 156, 0.2);
+  color: #8be7d8;
+}
+
+:root[data-theme="dark"] .status-pill.offline {
+  background: rgba(179, 32, 69, 0.28);
+  color: #ffb3c7;
+}
+
+:root[data-theme="dark"] .settings-page {
+  background: rgba(2, 8, 23, 0.68);
 }
 
 .modal-card h3 {
