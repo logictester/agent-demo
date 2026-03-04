@@ -24,9 +24,9 @@ body {
   font-family: "Manrope", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at 15% 20%, rgba(7, 184, 156, 0.16), transparent 35%),
-    radial-gradient(circle at 90% 0%, rgba(20, 86, 216, 0.18), transparent 38%),
-    linear-gradient(165deg, var(--bg-top), var(--bg-bottom));
+    linear-gradient(rgba(8, 20, 36, 0.55), rgba(8, 20, 36, 0.35)),
+    url("https://productpod-bfsi-deployment.in.tryciam.onewelcome.net/training/login/ui/resources/theme/img/thales-bg.png")
+      center center / cover no-repeat fixed;
   overflow-x: hidden;
 }
 

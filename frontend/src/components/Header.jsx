@@ -36,9 +36,13 @@ export default function Header({ onOpenSettings }) {
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="logo-dot" />
-        Helio Bank | AI Demo
+        <img
+          className="brand-logo"
+          src="https://productpod-bfsi-deployment.in.tryciam.onewelcome.net/training/login/ui/resources/theme/img/thales-logo-white.png"
+          alt="Thales"
+        />
       </div>
+      <div className="topbar-title">Agentic AI Demo</div>
       <div className="top-actions">
         <button
           ref={buttonRef}

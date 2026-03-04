@@ -1,7 +1,7 @@
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
 }
 
@@ -13,14 +13,24 @@
   display: inline-flex;
   gap: 10px;
   align-items: center;
+  color: #fff;
 }
 
-.logo-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  box-shadow: 0 0 0 6px rgba(20, 86, 216, 0.12);
+.topbar-title {
+  justify-self: center;
+  text-align: center;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: 1.7rem;
+  color: #fff;
+  letter-spacing: 0.3px;
+}
+
+.brand-logo {
+  display: block;
+  height: 60px;
+  width: auto;
+  object-fit: contain;
 }
 
 .top-actions {
@@ -111,6 +121,12 @@
 
 @media (max-width: 900px) {
   .topbar {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .top-actions {
+    width: 100%;
+    justify-content: center;
   }
 }
