@@ -1,0 +1,23 @@
+---
+server:
+  name: enrichment-agent
+log:
+  level: ${LOG_LEVEL:-info}
+jwt:
+  jwksUrl: ${JWKS_URL:-}
+  enabled: ${JWT_VALIDATION_ENABLED:-true}
+databases:
+  - id: pineconeDb
+    type: Pinecone
+    periodicStart: "0 * 20 * * ?"
+    classificationService:
+      serviceUrl: ${CLASSIFICATION_SERVICE_URL}
+    metadataKey: category
+    vendor:
+      pinecone:
+        apiKey: ${PINECONE_API_KEY}
+      collections:
+        mode: exclude
+        patterns:
+          - users
+          - books_*

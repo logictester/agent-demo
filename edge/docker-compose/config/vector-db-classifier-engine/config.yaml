@@ -1,0 +1,5 @@
+---
+log:
+  level: ${LOG_LEVEL:-info}
+openai:
+  apiKey: ${OPENAI_API_KEY}

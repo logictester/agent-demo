@@ -1,0 +1,15 @@
+---
+log:
+  level: ${LOG_LEVEL:-debug}
+plainIdUrl: ${PLAINID_API_URL}
+plainIdDiscoveryUrl: ${PLAINID_DISCOVERY_URL}
+discoverySources:
+  - popId: ${POP_ID}
+    environmentId: ${ENVIRONMENT_ID}
+    type: PlainIdMcpGateway
+    vendor:
+      plainIdMcpGateway:
+        url: ${PLAINID_MCP_GATEWAY_URL}
+    plainIdCredentials:
+      clientId: ${PLAINID_CLIENT_ID}
+      clientSecret: ${PLAINID_CLIENT_SECRET}
