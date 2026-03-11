@@ -30,3 +30,4 @@ coverage/
 
 # Docker local overrides
 docker-compose.override.yml
+edge/docker-compose/config/.generated/

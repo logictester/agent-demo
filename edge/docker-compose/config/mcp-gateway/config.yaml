@@ -1,32 +1,30 @@
 ---
 mcpServers:
   bank:
-    url: ${BANK_MCP_URL}
+    url: $BANK_MCP_URL
     transportType: streamable-http
     headersToForward:
       - "Authorization"
       - "X-User-Token"
       - "X-Agent-Token"
 plainID:
-  runtimeBaseURL: ${PLAINID_RUNTIME_BASE_URL}
-  toolsAsset: ${PLAINID_TOOLS_ASSET:-Tools}
-  clientID: ${PLAINID_CLIENT_ID}
-  clientSecret: ${PLAINID_CLIENT_SECRET}
-  emptyOnError: ${PLAINID_EMPTY_ON_ERROR:-false}
+  runtimeBaseURL: $PLAINID_RUNTIME_BASE_URL
+  toolsAsset: $PLAINID_TOOLS_ASSET
+  emptyOnError: $PLAINID_EMPTY_ON_ERROR
   plugins:
     logger:
       enable: true
     presidio:
       enable: false
-      analyzer_url: "http://${PRESIDIO_ANALYZER_HOST}:${PRESIDIO_ANALYZER_PORT}/analyze"
-      anonymizer_url: "http://${PRESIDIO_ANONYMIZER_HOST}:${PRESIDIO_ANONYMIZER_PORT}/anonymize"
+      analyzer_url: "http://$PRESIDIO_ANALYZER_HOST:$PRESIDIO_ANALYZER_PORT/analyze"
+      anonymizer_url: "http://$PRESIDIO_ANONYMIZER_HOST:$PRESIDIO_ANONYMIZER_PORT/anonymize"
       threshold: 0.5
     dataFilter:
       enable: false
       authHeader: "X-User-Token"
-      filterUrl: "http://${DATAFILTER_HOST}:${DATAFILTER_PORT}/resql"
-      clientID: ${DATAFILTER_CLIENT_ID}
-      clientSecret: ${DATAFILTER_CLIENT_SECRET}
+      filterUrl: "http://$DATAFILTER_HOST:$DATAFILTER_PORT/resql"
+      clientID: $DATAFILTER_CLIENT_ID
+      clientSecret: $DATAFILTER_CLIENT_SECRET
       flags:
         emptyAllowedTreatAsPermitted: true
         ignoreRuntimeAllowedFields: true
@@ -39,5 +37,5 @@ plainID:
     - "X-User-Token"
     - "X-Agent-Token"
 mcpProxy:
-  addr: ${PLAINID_MCP_GATEWAY_ADDR:-:5235}
+  addr: $PLAINID_MCP_GATEWAY_ADDR
   pingInterval: 10

@@ -2,16 +2,19 @@
   "name": "helio-bank-ai-demo",
   "private": true,
   "scripts": {
-    "start": "npm run edge:login && docker compose up -d db && docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml up -d --remove-orphans --force-recreate --pull=always",
-    "start:with-logs": "npm run edge:login && docker compose up -d db && docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml up -d --remove-orphans --force-recreate --pull=always && docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml logs -f",
+    "start": "npm run edge:login && docker compose up -d db && npm run edge:up",
+    "start:with-logs": "npm run edge:login && docker compose up -d db && npm run edge:up && docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml logs -f",
     "start:logs": "docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml logs -f",
     "stop": "docker compose down && docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml down --remove-orphans --timeout 5",
-    "dev": "npm run edge:login && docker compose up -d db && docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml up -d --remove-orphans --force-recreate --pull=always && concurrently -n backend,frontend,edge -c blue,green,magenta \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:edge:logs\"",
+    "dev": "npm run edge:login && docker compose up -d db && npm run edge:up && concurrently -n backend,frontend,edge -c blue,green,magenta \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:edge:logs\"",
     "dev:stop": "npm run stop",
-    "dev:edge": "npm run edge:login && docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml up -d --remove-orphans --force-recreate --pull=always",
+    "dev:edge": "npm run edge:login && npm run edge:up",
     "dev:edge:stop": "docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml down --remove-orphans --timeout 5",
     "dev:edge:logs": "docker compose -p plainid-edge -f edge/docker-compose/docker-compose.yaml logs -f",
-    "edge:login": "set -a; . ./backend/.env; : \"${PLAINID_DOCKER_REGISTRY_HOST?Missing PLAINID_DOCKER_REGISTRY_HOST}\"; : \"${PLAINID_DOCKER_REGISTRY_USERNAME?Missing PLAINID_DOCKER_REGISTRY_USERNAME}\"; : \"${PLAINID_DOCKER_REGISTRY_PASSWORD?Missing PLAINID_DOCKER_REGISTRY_PASSWORD}\"; printf '%s' \"$PLAINID_DOCKER_REGISTRY_PASSWORD\" | docker login \"$PLAINID_DOCKER_REGISTRY_HOST\" -u \"$PLAINID_DOCKER_REGISTRY_USERNAME\" --password-stdin",
+    "edge:login": "node scripts/edge-login.js",
+    "edge:up": "node scripts/compose-edge.js up -d --remove-orphans --force-recreate",
+    "edge:pull": "node scripts/compose-edge.js pull",
+    "dev:pull": "npm run edge:login && npm run edge:pull && npm run edge:up",
     "dev:backend": "cd backend && node server.js",
     "dev:frontend": "cd frontend && npx vite",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
@@ -20,6 +23,7 @@
     "test:watch": "cd frontend && npm run test:watch"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "dotenv": "^16.4.7"
   }
 }
