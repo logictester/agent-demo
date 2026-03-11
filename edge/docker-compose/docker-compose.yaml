@@ -1,0 +1,59 @@
+---
+services:
+  vector-db-classifier-engine:
+    image: plainidio.azurecr.io/vector-db-classifier-engine:1.0.1
+    container_name: plainid-vector-db-classifier-engine
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./config/vector-db-classifier-engine/.env
+    volumes:
+      - ./config/vector-db-classifier-engine:/app/config:ro
+    networks:
+      - plainid-edge
+
+  mcp-gateway:
+    image: plainidio.azurecr.io/mcp-gateway:1.0.4
+    container_name: plainid-mcp-gateway
+    restart: unless-stopped
+    ports:
+      - "5235:5235"
+    env_file:
+      - ./config/mcp-gateway/.env
+    volumes:
+      - ./config/mcp-gateway:/app/config:ro
+    networks:
+      - plainid-edge
+
+  enrichment-agent:
+    image: plainidio.azurecr.io/enrichment-agent:1.0.4
+    container_name: plainid-enrichment-agent
+    restart: unless-stopped
+    depends_on:
+      - vector-db-classifier-engine
+    ports:
+      - "8082:8080"
+    env_file:
+      - ./config/enrichment-agent/.env
+    volumes:
+      - ./config/enrichment-agent:/app/config:ro
+    networks:
+      - plainid-edge
+
+  discovery-agent:
+    image: plainidio.azurecr.io/discovery-agent:1.0.2
+    container_name: plainid-discovery-agent
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    env_file:
+      - ./config/discovery-agent/.env
+    volumes:
+      - ./config/discovery-agent:/app/config:ro
+    networks:
+      - plainid-edge
+
+networks:
+  plainid-edge:
