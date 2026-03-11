@@ -2,7 +2,6 @@
 services:
   vector-db-classifier-engine:
     image: plainidio.azurecr.io/vector-db-classifier-engine:1.0.1
-    container_name: plainid-vector-db-classifier-engine
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -15,7 +14,6 @@ services:
 
   mcp-gateway:
     image: plainidio.azurecr.io/mcp-gateway:1.0.4
-    container_name: plainid-mcp-gateway
     restart: unless-stopped
     ports:
       - "5235:5235"
@@ -28,7 +26,6 @@ services:
 
   enrichment-agent:
     image: plainidio.azurecr.io/enrichment-agent:1.0.4
-    container_name: plainid-enrichment-agent
     restart: unless-stopped
     depends_on:
       - vector-db-classifier-engine
@@ -43,7 +40,6 @@ services:
 
   discovery-agent:
     image: plainidio.azurecr.io/discovery-agent:1.0.2
-    container_name: plainid-discovery-agent
     restart: unless-stopped
     ports:
       - "8080:8080"
