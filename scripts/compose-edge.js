@@ -6,55 +6,18 @@ const { parse } = require('dotenv')
 const composeFile = resolve(process.cwd(), 'edge/docker-compose/docker-compose.yaml')
 const generatedDir = resolve(process.cwd(), 'edge/docker-compose/config/.generated')
 
-const envFiles = [
-  resolve(process.cwd(), 'edge/docker-compose/config/mcp-gateway/.env'),
-  resolve(process.cwd(), 'edge/docker-compose/config/discovery-agent/.env'),
+const componentConfigs = [
+  {
+    name: 'mcp-gateway',
+    template: resolve(process.cwd(), 'edge/docker-compose/config/mcp-gateway/config.yaml'),
+    envFile: resolve(process.cwd(), 'edge/docker-compose/config/mcp-gateway/.env'),
+  },
+  {
+    name: 'discovery-agent',
+    template: resolve(process.cwd(), 'edge/docker-compose/config/discovery-agent/config.yaml'),
+    envFile: resolve(process.cwd(), 'edge/docker-compose/config/discovery-agent/.env'),
+  },
 ]
-
-const configTemplates = [
-  resolve(process.cwd(), 'edge/docker-compose/config/mcp-gateway/config.yaml'),
-  resolve(process.cwd(), 'edge/docker-compose/config/discovery-agent/config.yaml'),
-]
-
-const mergedEnv = { ...process.env }
-for (const path of envFiles) {
-  if (!existsSync(path)) {
-    continue
-  }
-
-  const parsed = parse(readFileSync(path))
-  for (const [key, value] of Object.entries(parsed)) {
-    if (value !== '') {
-      mergedEnv[key] = value
-    }
-  }
-}
-
-function renderTemplate(text) {
-  const expanded = text.replace(/\$\{([A-Z0-9_]+)\}|\$([A-Z0-9_]+)/g, (_, varNameCurly, varNamePlain) => {
-    const key = varNameCurly || varNamePlain
-    const value = mergedEnv[key]
-    if (value === undefined) {
-      return ''
-    }
-    return value
-  })
-
-  return expanded
-}
-
-for (const templatePath of configTemplates) {
-  if (!existsSync(templatePath)) {
-    continue
-  }
-
-  const template = readFileSync(templatePath, 'utf8')
-  const rendered = renderTemplate(template)
-  const rel = relative(resolve(process.cwd(), 'edge/docker-compose/config'), templatePath)
-  const outputPath = resolve(generatedDir, rel)
-  mkdirSync(dirname(outputPath), { recursive: true })
-  writeFileSync(outputPath, `${rendered}\n`, 'utf8')
-}
 
 const requiredEnvVars = [
   'PLAINID_RUNTIME_BASE_URL',
@@ -72,11 +35,82 @@ const requiredEnvVars = [
   'PLAINID_CLIENT_SECRET',
 ]
 
+const requiredTemplateVars = [
+  'PLAINID_CLIENT_ID',
+  'PLAINID_CLIENT_SECRET',
+]
+
+function parseEnv(path) {
+  if (!existsSync(path)) {
+    return {}
+  }
+
+  return parse(readFileSync(path))
+}
+
+function renderTemplate(text, env) {
+  return text.replace(/\$\{([A-Z0-9_]+)\}|\$([A-Z0-9_]+)/g, (_, varNameCurly, varNamePlain) => {
+    const key = varNameCurly || varNamePlain
+    const value = env[key]
+    if (value === undefined) {
+      return ''
+    }
+    return value
+  })
+}
+
+const mergedEnv = { ...process.env }
+const serviceDebug = new Map()
+
+for (const component of componentConfigs) {
+  const componentEnv = parseEnv(component.envFile)
+
+  for (const [key, value] of Object.entries(componentEnv)) {
+    if (value !== '') {
+      mergedEnv[key] = value
+    }
+  }
+
+  if (componentEnv.PLAINID_CLIENT_ID) {
+    serviceDebug.set(`${component.name}:clientId`, Boolean(componentEnv.PLAINID_CLIENT_ID))
+  } else {
+    serviceDebug.set(`${component.name}:clientId`, false)
+  }
+
+  if (componentEnv.PLAINID_CLIENT_SECRET) {
+    serviceDebug.set(`${component.name}:clientSecret`, Boolean(componentEnv.PLAINID_CLIENT_SECRET))
+  } else {
+    serviceDebug.set(`${component.name}:clientSecret`, false)
+  }
+
+  const template = readFileSync(component.template, 'utf8')
+  const renderEnv = { ...process.env, ...componentEnv }
+  const rendered = renderTemplate(template, renderEnv)
+
+  for (const requiredVar of requiredTemplateVars) {
+    const token = new RegExp(`\$\{${requiredVar}\}|\$${requiredVar}`)
+    if (token.test(template) && !renderEnv[requiredVar]) {
+      console.error(`Template substitution failed for ${component.name}: missing ${requiredVar}`)
+      process.exit(1)
+    }
+  }
+
+  const rel = relative(resolve(process.cwd(), 'edge/docker-compose/config'), component.template)
+  const outputPath = resolve(generatedDir, rel)
+  mkdirSync(dirname(outputPath), { recursive: true })
+  writeFileSync(outputPath, `${rendered}\n`, 'utf8')
+}
+
 const missing = requiredEnvVars.filter((name) => !mergedEnv[name])
 if (missing.length > 0) {
   console.error('Missing required env vars for edge startup:', missing.join(', '))
   process.exit(1)
 }
+
+console.log('compose-edge: mcp-gateway .env has clientId:', serviceDebug.get('mcp-gateway:clientId'))
+console.log('compose-edge: mcp-gateway .env has clientSecret:', serviceDebug.get('mcp-gateway:clientSecret'))
+console.log('compose-edge: discovery-agent .env has clientId:', serviceDebug.get('discovery-agent:clientId'))
+console.log('compose-edge: discovery-agent .env has clientSecret:', serviceDebug.get('discovery-agent:clientSecret'))
 
 if (!mergedEnv.PLAINID_MCP_GATEWAY_HOST_PORT) {
   mergedEnv.PLAINID_MCP_GATEWAY_HOST_PORT = '5235'

@@ -10,6 +10,9 @@ mcpServers:
 plainID:
   runtimeBaseURL: $PLAINID_RUNTIME_BASE_URL
   toolsAsset: $PLAINID_TOOLS_ASSET
+  clientID: $PLAINID_CLIENT_ID
+  clientId: $PLAINID_CLIENT_ID
+  clientSecret: $PLAINID_CLIENT_SECRET
   emptyOnError: $PLAINID_EMPTY_ON_ERROR
   plugins:
     logger:
@@ -24,6 +27,7 @@ plainID:
       authHeader: "X-User-Token"
       filterUrl: "http://$DATAFILTER_HOST:$DATAFILTER_PORT/resql"
       clientID: $DATAFILTER_CLIENT_ID
+      clientId: $DATAFILTER_CLIENT_ID
       clientSecret: $DATAFILTER_CLIENT_SECRET
       flags:
         emptyAllowedTreatAsPermitted: true
