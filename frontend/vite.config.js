@@ -10,6 +10,7 @@ export default defineConfig({
       "/agent": "http://localhost:4000",
       "/delegation": "http://localhost:4000",
       "/automation": "http://localhost:4000",
+      "/stocks": "http://localhost:4000",
     },
   },
 });

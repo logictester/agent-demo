@@ -79,6 +79,12 @@ export function getAuthorizationEvents(limit = 60) {
   return request(`/delegation/events?limit=${limit}`);
 }
 
+export function sendSlackTestNotification() {
+  return request("/delegation/notifications/slack/test", {
+    method: "POST",
+  });
+}
+
 /* ── Automation ── */
 export function getAutomationRules() {
   return request("/automation/rules");
@@ -107,5 +113,20 @@ export function deleteAutomationRule(id) {
 export function runAutomationRule(id) {
   return request(`/automation/rules/${encodeURIComponent(id)}/run`, {
     method: "POST",
+  });
+}
+
+/* ── Stocks ── */
+export function getStockDashboard(extraHeaders = {}) {
+  return request("/stocks/dashboard", {
+    headers: extraHeaders,
+  });
+}
+
+export function sendStockAgentMessage(message, extraHeaders = {}) {
+  return request("/stocks/agent", {
+    method: "POST",
+    headers: extraHeaders,
+    body: JSON.stringify({ message }),
   });
 }

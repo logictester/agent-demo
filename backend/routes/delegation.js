@@ -18,6 +18,7 @@ import {
   setDelegatedOperations,
   verifyApprovedOperation
 } from "../services/delegation.js";
+import { sendSlackTestNotification } from "../services/slack.js";
 
 const router = express.Router();
 const monokeeIdvStartUrl = process.env.MONOKEE_IDV_START_URL || "";
@@ -306,6 +307,23 @@ router.get("/events", async (req, res) => {
   const limit = Number(req.query.limit) || 40;
   const events = await listAuthorizationEvents(user.sub, limit);
   return res.json({ events });
+});
+
+router.post("/notifications/slack/test", async (req, res) => {
+  const { user } = await resolveUser(req);
+  if (!user?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+
+  try {
+    const result = await sendSlackTestNotification(user);
+    if (!result?.ok) {
+      return res.status(400).json({ error: result?.error || "Slack test notification could not be sent." });
+    }
+    return res.json({ ok: true, message: "Slack test notification sent." });
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || "Slack test notification failed." });
+  }
 });
 
 router.post("/approvals/:id/approve", async (req, res) => {

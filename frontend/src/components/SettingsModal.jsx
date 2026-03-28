@@ -24,6 +24,8 @@ export default function SettingsModal({ open, onClose }) {
   const [expiry, setExpiry] = useState("");
   const [maxTransfer, setMaxTransfer] = useState("");
   const [delegationMsg, setDelegationMsg] = useState("");
+  const [slackTestStatus, setSlackTestStatus] = useState("");
+  const [sendingSlackTest, setSendingSlackTest] = useState(false);
 
   /* ── Automation form state ── */
   const [editingRuleId, setEditingRuleId] = useState(null);
@@ -136,6 +138,24 @@ export default function SettingsModal({ open, onClose }) {
       await loadAuthorizationEvents();
     } catch (err) {
       setDelegationMsg(`Approval error: ${err.message}`);
+    }
+  }
+
+  async function sendSlackTest() {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setSlackTestStatus("Please sign in first. The Slack test endpoint is only available to authenticated users.");
+      return;
+    }
+
+    setSendingSlackTest(true);
+    try {
+      const data = await api.sendSlackTestNotification();
+      setSlackTestStatus(data?.message || "Slack test notification sent.");
+    } catch (err) {
+      setSlackTestStatus(`Slack test error: ${err.message}`);
+    } finally {
+      setSendingSlackTest(false);
     }
   }
 
@@ -520,6 +540,26 @@ export default function SettingsModal({ open, onClose }) {
                 showEditButton
                 onEditRule={editRule}
               />
+
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(148, 163, 184, 0.2)" }}>
+                <h3 className="menu-title" style={{ margin: "0 0 8px" }}>
+                  Slack Notifications
+                </h3>
+                <div className="delegation-status" style={{ marginBottom: 10 }}>
+                  {slackTestStatus || "Use Slack test to verify your webhook before waiting for a real approval."}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    className="btn btn-save"
+                    onClick={sendSlackTest}
+                    disabled={!token || sendingSlackTest}
+                    title={!token ? "Sign in to send a Slack test notification." : ""}
+                  >
+                    <span className="material-symbols-outlined">notifications</span>
+                    {sendingSlackTest ? "Sending..." : "Test Slack Notification"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

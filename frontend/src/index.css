@@ -84,6 +84,38 @@ body {
   gap: 18px;
 }
 
+.workspace-tabs {
+  display: inline-flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(8, 20, 36, 0.28);
+  backdrop-filter: blur(10px);
+  justify-self: start;
+}
+
+.workspace-tab {
+  border: none;
+  border-radius: 999px;
+  padding: 11px 16px;
+  font: inherit;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.86);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.workspace-tab.active {
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f223d;
+  box-shadow: 0 10px 24px rgba(15, 34, 61, 0.16);
+}
+
+.workspace-tab:hover {
+  transform: translateY(-1px);
+}
+
 /* ── Card ── */
 .card {
   background: var(--surface);
@@ -333,6 +365,12 @@ body {
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
+  .workspace-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
   .grid {
     grid-template-columns: 1fr;
   }

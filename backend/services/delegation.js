@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { dbQuery, getDbPool } from "./db.js";
+import { sendSlackApprovalNotification } from "./slack.js";
 
 const DEFAULT_AVAILABLE_BALANCE = 24982.14;
 const DEFAULT_SAVINGS_BALANCE = 7410.0;
@@ -619,6 +620,11 @@ export async function createOperationApproval(sub, approval = {}) {
   );
 
   const created = await getOperationApprovalById(id);
+  if (created) {
+    sendSlackApprovalNotification(created, user).catch((error) => {
+      console.warn("Slack approval notification failed:", error?.message || error);
+    });
+  }
   return created;
 }
 

@@ -9,8 +9,10 @@ import authRoutes from "./routes/auth.js";
 import agentRoutes from "./routes/agent.js";
 import delegationRoutes from "./routes/delegation.js";
 import automationRoutes from "./routes/automation.js";
+import stockRoutes from "./routes/stocks.js";
 import { startAutomationScheduler } from "./services/automation.js";
 import { startFastMcpServer } from "./mcp/server.js";
+import { startStockMarket } from "./services/stocks.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +30,7 @@ app.use("/auth", authRoutes);
 app.use("/agent", agentRoutes);
 app.use("/delegation", delegationRoutes);
 app.use("/automation", automationRoutes);
+app.use("/stocks", stockRoutes);
 
 if (frontendDistReady) {
   // Serve Vite production build (run `npm run build` first)
@@ -47,6 +50,7 @@ if (frontendDistReady) {
 
 app.listen(port, () => console.log(`Server running on port ${port}`));
 startAutomationScheduler();
+startStockMarket();
 startFastMcpServer().catch((error) => {
   console.error("[mcp] failed to start fastmcp server:", error?.message || error);
 });

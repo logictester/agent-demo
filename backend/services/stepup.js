@@ -29,13 +29,17 @@ function sign(content) {
   return crypto.createHmac("sha256", STEP_UP_SECRET).update(content).digest("base64url");
 }
 
-export function createStepUpTicket({ sub }) {
+export function createStepUpTicket({ sub, exp: requestedExp }) {
   const now = Math.floor(Date.now() / 1000);
+  const requested = Number(requestedExp);
+  const targetExp = Number.isFinite(requested) && requested > now
+    ? Math.max(now + STEP_UP_TTL_SECONDS, Math.floor(requested))
+    : now + STEP_UP_TTL_SECONDS;
   const header = { alg: "HS256", typ: "STEPUP" };
   const payload = {
     sub: String(sub || ""),
     iat: now,
-    exp: now + STEP_UP_TTL_SECONDS
+    exp: targetExp
   };
 
   const encodedHeader = toBase64Url(JSON.stringify(header));

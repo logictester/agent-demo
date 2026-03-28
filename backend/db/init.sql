@@ -121,6 +121,19 @@ CREATE TABLE IF NOT EXISTS transfer_automation_rules (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS stock_portfolios (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  auto_trading_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  cash NUMERIC(14,2) NOT NULL DEFAULT 100000.00,
+  positions JSONB NOT NULL DEFAULT '{}'::jsonb,
+  trade_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+  agent_log JSONB NOT NULL DEFAULT '[]'::jsonb,
+  pending_trade JSONB,
+  pulse_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+  last_decision_at BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_sub ON users(sub);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_idv_sessions_user_id ON idv_sessions(user_id);

@@ -120,7 +120,10 @@ router.get("/callback", async (req, res) => {
 
     if (isStepUp && tokenData.access_token) {
       const userInfo = await getUserInfo(tokenData.access_token);
-      const issued = createStepUpTicket({ sub: userInfo?.sub || "unknown" });
+      const issued = createStepUpTicket({
+        sub: userInfo?.sub || "unknown",
+        exp: Number(idTokenClaims?.exp) || 0
+      });
       stepUpToken = issued.token;
       stepUpExp = issued.exp;
     }

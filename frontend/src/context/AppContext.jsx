@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   stepUpTicket: "helio.stepUpTicket",
   stepUpTicketExp: "helio.stepUpTicketExp",
   approvalTicket: "helio.approvalTicket",
+  stockApprovalTicket: "helio.stockApprovalTicket",
   theme: "helio.theme",
 };
 
@@ -118,6 +119,7 @@ function consumeAuthRedirectHash() {
     localStorage.removeItem(STORAGE_KEYS.stepUpTicketExp);
     localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
     localStorage.removeItem(STORAGE_KEYS.approvalTicket);
+    localStorage.removeItem(STORAGE_KEYS.stockApprovalTicket);
   } else {
     if (accessToken) localStorage.setItem("access_token", accessToken);
     if (idToken) localStorage.setItem("id_token", idToken);
@@ -169,6 +171,33 @@ export function AppProvider({ children }) {
   });
 
   const [automationRules, setAutomationRules] = useState([]);
+  const [stockDashboard, setStockDashboard] = useState({
+    market: {
+      updatedAt: null,
+      sentiment: 0,
+      breadth: { advancers: 0, decliners: 0, ratio: 0 },
+      strongest: [],
+      weakest: [],
+      watchlist: [],
+      source: "",
+      sourceLabel: "",
+      isLive: false,
+      status: "loading",
+      statusMessage: "Loading stock dashboard...",
+      error: null,
+    },
+    portfolio: {
+      autoTradingEnabled: true,
+      cash: 0,
+      equity: 0,
+      totalValue: 0,
+      dayPnl: 0,
+      positions: [],
+      tradeHistory: [],
+      agentLog: [],
+      pulseHistory: [],
+    },
+  });
   const [sessionWarningSeconds, setSessionWarningSeconds] = useState(120);
   const [questionHistory, setQuestionHistory] = useState(readQuestionHistory);
   const [theme, setTheme] = useState(() => {
@@ -333,6 +362,91 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  const loadStockDashboard = useCallback(async () => {
+    try {
+      const headers = {};
+      const stepUp = getValidStepUpTicket();
+      if (stepUp) headers["X-Step-Up-Ticket"] = stepUp;
+      const approval = localStorage.getItem(STORAGE_KEYS.stockApprovalTicket);
+      if (approval) headers["X-Approval-Ticket"] = approval;
+      const data = await api.getStockDashboard(headers);
+      if (!data?.portfolio?.pendingTrade) {
+        localStorage.removeItem(STORAGE_KEYS.stockApprovalTicket);
+      } else if (data.portfolio.pendingTrade?.approvalTicket) {
+        localStorage.setItem(STORAGE_KEYS.stockApprovalTicket, String(data.portfolio.pendingTrade.approvalTicket));
+      }
+      setStockDashboard({
+        market: data.market && typeof data.market === "object"
+          ? data.market
+          : {
+              updatedAt: null,
+              sentiment: 0,
+              breadth: { advancers: 0, decliners: 0, ratio: 0 },
+              strongest: [],
+              weakest: [],
+              watchlist: [],
+              source: "",
+              sourceLabel: "",
+              isLive: false,
+              status: "loading",
+              statusMessage: "Loading stock dashboard...",
+              error: null,
+            },
+        portfolio: data.portfolio && typeof data.portfolio === "object"
+          ? data.portfolio
+          : {
+              autoTradingEnabled: true,
+              cash: 0,
+              equity: 0,
+              totalValue: 0,
+              dayPnl: 0,
+              positions: [],
+              tradeHistory: [],
+              agentLog: [],
+              pulseHistory: [],
+            },
+      });
+      return data;
+    } catch {
+      setStockDashboard((prev) => ({
+        ...prev,
+        market: {
+          updatedAt: null,
+          sentiment: 0,
+          breadth: { advancers: 0, decliners: 0, ratio: 0 },
+          strongest: [],
+          weakest: [],
+          watchlist: [],
+          source: prev.market?.source || "",
+          sourceLabel: prev.market?.sourceLabel || "Stock backend",
+          isLive: false,
+          status: "backend_error",
+          statusMessage: "The stock dashboard could not be loaded from the backend.",
+          error: "Check that the backend server is running and reachable on port 4000."
+        }
+      }));
+      return null;
+    }
+  }, []);
+
+  const sendStockMessage = useCallback(async (message) => {
+    const headers = {};
+    const stepUp = getValidStepUpTicket();
+    if (stepUp) headers["X-Step-Up-Ticket"] = stepUp;
+    const approval = localStorage.getItem(STORAGE_KEYS.stockApprovalTicket);
+    if (approval) headers["X-Approval-Ticket"] = approval;
+    const data = await api.sendStockAgentMessage(message, headers);
+    if (data?.dashboard) {
+      setStockDashboard(data.dashboard);
+      if (!data.dashboard?.portfolio?.pendingTrade) {
+        localStorage.removeItem(STORAGE_KEYS.stockApprovalTicket);
+      } else if (data.dashboard.portfolio.pendingTrade?.approvalTicket) {
+        localStorage.setItem(STORAGE_KEYS.stockApprovalTicket, String(data.dashboard.portfolio.pendingTrade.approvalTicket));
+      }
+    }
+    return data;
+  }, []);
+
   const storeQuestionHistory = useCallback((question) => {
     const normalized = String(question || "").trim();
     if (!normalized) return;
@@ -356,6 +470,7 @@ export function AppProvider({ children }) {
     loadFinancialState();
     loadAutomationRules();
     loadAuthorizationEvents();
+    loadStockDashboard();
 
     api.getSessionConfig().then((data) => {
       const val = Number(data.sessionWarningSeconds);
@@ -391,6 +506,8 @@ export function AppProvider({ children }) {
     loadFinancialState, loadAuthorizationEvents,
     loadDelegationOptions, loadDelegationStatus,
     loadPendingApprovals, loadAutomationRules,
+    stockDashboard, setStockDashboard,
+    loadStockDashboard, sendStockMessage,
     STORAGE_KEYS,
     isAuthenticated,
     theme, setTheme, toggleTheme,
