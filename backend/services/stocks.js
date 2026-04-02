@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { Ollama } from "@langchain/ollama";
 import { dbQuery, getDbPool } from "./db.js";
-import { createOperationApproval, verifyApprovedOperation, upsertUserByClaims } from "./delegation.js";
+import { createOperationApproval, getOperationApprovalById, verifyApprovedOperation, upsertUserByClaims } from "./delegation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -528,6 +528,32 @@ function summarizePortfolio(portfolio) {
     agentLog: portfolio.agentLog,
     pendingTrade: portfolio.pendingTrade,
     pulseHistory: Array.isArray(portfolio.pulseHistory) ? portfolio.pulseHistory.slice(-MAX_PULSE_POINTS) : []
+  };
+}
+
+async function enrichPortfolioApprovalState(portfolioSummary, portfolio) {
+  const pendingTrade = portfolioSummary?.pendingTrade;
+  if (
+    !pendingTrade ||
+    pendingTrade.type !== "approval" ||
+    !pendingTrade.approvalTicket ||
+    !portfolio?.userSub
+  ) {
+    return portfolioSummary;
+  }
+
+  const approval = await getOperationApprovalById(pendingTrade.approvalTicket);
+  if (!approval || approval.sub !== portfolio.userSub) {
+    return portfolioSummary;
+  }
+
+  return {
+    ...portfolioSummary,
+    pendingTrade: {
+      ...pendingTrade,
+      approvalStatus: approval.status || "pending",
+      approvalResolvedAt: approval.resolvedAt || null
+    }
   };
 }
 
@@ -1091,6 +1117,20 @@ async function maybeExecutePendingTrade(portfolio, authorization = {}) {
     }
     const verification = await verifyApprovedOperation(portfolio.userSub, approvalId, "stock_trade_approval");
     if (!verification.ok) {
+      if (verification.reason === "approval_denied" || verification.reason === "approval_expired") {
+        pushAgentLog(portfolio, {
+          id: makeId("log"),
+          at: currentTimestamp(),
+          type: "system",
+          title: "Protected stock trade cancelled",
+          detail:
+            verification.reason === "approval_denied"
+              ? `Approval for ${pendingTrade.action.toUpperCase()} ${pendingTrade.symbol} was denied.`
+              : `Approval for ${pendingTrade.action.toUpperCase()} ${pendingTrade.symbol} expired.`
+        });
+        clearPendingTrade(portfolio);
+        return null;
+      }
       return pendingTrade;
     }
   }
@@ -1527,9 +1567,11 @@ export async function getStockDashboard(userSub, authorization = {}) {
   recordPortfolioPulse(portfolio);
   await savePortfolio(portfolio);
 
+  const portfolioSummary = await enrichPortfolioApprovalState(summarizePortfolio(portfolio), portfolio);
+
   return {
     market: buildMarketSnapshot(),
-    portfolio: summarizePortfolio(portfolio)
+    portfolio: portfolioSummary
   };
 }
 

@@ -67,6 +67,7 @@ export default function SessionModal() {
     localStorage.removeItem("access_token");
     localStorage.removeItem("id_token");
     localStorage.removeItem("refresh_token");
+    localStorage.removeItem("helio.lastResponse");
     window.location.href = "/auth/login?reauth=1&returnTo=/";
   }
 

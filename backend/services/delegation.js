@@ -686,6 +686,92 @@ export async function approveOperationById(sub, approvalId) {
   return getOperationApprovalById(approvalId);
 }
 
+export async function denyOperationById(sub, approvalId) {
+  const normalizedSub = normalizeSub(sub);
+  if (!normalizedSub || !approvalId || !getDbPool()) {
+    return null;
+  }
+  await ensureDelegationSchema();
+  const approval = await getOperationApprovalById(approvalId);
+  if (!approval || approval.sub !== normalizedSub) {
+    return null;
+  }
+  if (approval.status !== "pending") {
+    return approval;
+  }
+  if (approval.expiresAt && new Date(approval.expiresAt).getTime() <= Date.now()) {
+    await dbQuery(
+      `
+        UPDATE operation_approvals
+        SET status = 'expired',
+            resolved_at = NOW(),
+            resolved_by_sub = $2
+        WHERE id = $1
+      `,
+      [String(approvalId), normalizedSub]
+    );
+    return getOperationApprovalById(approvalId);
+  }
+
+  await dbQuery(
+    `
+      UPDATE operation_approvals
+      SET status = 'denied',
+          resolved_at = NOW(),
+          resolved_by_sub = $2
+      WHERE id = $1
+    `,
+    [String(approvalId), normalizedSub]
+  );
+  return getOperationApprovalById(approvalId);
+}
+
+export async function resolveOperationApprovalFromSlack(approvalId, action, slackActor = "slack") {
+  if (!approvalId || !getDbPool()) {
+    return null;
+  }
+
+  const normalizedAction = String(action || "").trim().toLowerCase();
+  if (!["approved", "denied"].includes(normalizedAction)) {
+    return null;
+  }
+
+  await ensureDelegationSchema();
+  const approval = await getOperationApprovalById(approvalId);
+  if (!approval) {
+    return null;
+  }
+  if (approval.status !== "pending") {
+    return approval;
+  }
+
+  if (approval.expiresAt && new Date(approval.expiresAt).getTime() <= Date.now()) {
+    await dbQuery(
+      `
+        UPDATE operation_approvals
+        SET status = 'expired',
+            resolved_at = NOW(),
+            resolved_by_sub = $2
+        WHERE id = $1
+      `,
+      [String(approvalId), String(slackActor || "slack")]
+    );
+    return getOperationApprovalById(approvalId);
+  }
+
+  await dbQuery(
+    `
+      UPDATE operation_approvals
+      SET status = $2,
+          resolved_at = NOW(),
+          resolved_by_sub = $3
+      WHERE id = $1
+    `,
+    [String(approvalId), normalizedAction, String(slackActor || "slack")]
+  );
+  return getOperationApprovalById(approvalId);
+}
+
 export async function verifyApprovedOperation(sub, approvalId, expectedType = null) {
   const normalizedSub = normalizeSub(sub);
   if (!normalizedSub || !approvalId) {
@@ -701,8 +787,11 @@ export async function verifyApprovedOperation(sub, approvalId, expectedType = nu
   if (approval.expiresAt && new Date(approval.expiresAt).getTime() <= Date.now()) {
     return { ok: false, reason: "approval_expired" };
   }
+  if (approval.status === "denied") {
+    return { ok: false, reason: "approval_denied", approval };
+  }
   if (approval.status !== "approved") {
-    return { ok: false, reason: "approval_not_approved" };
+    return { ok: false, reason: "approval_not_approved", approval };
   }
   return { ok: true, approval };
 }

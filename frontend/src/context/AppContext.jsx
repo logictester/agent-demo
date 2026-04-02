@@ -115,6 +115,7 @@ function consumeAuthRedirectHash() {
     localStorage.removeItem("access_token");
     localStorage.removeItem("id_token");
     localStorage.removeItem("refresh_token");
+    localStorage.removeItem(STORAGE_KEYS.lastResponse);
     localStorage.removeItem(STORAGE_KEYS.stepUpTicket);
     localStorage.removeItem(STORAGE_KEYS.stepUpTicketExp);
     localStorage.removeItem(STORAGE_KEYS.pendingHighRiskTransfer);
@@ -124,6 +125,7 @@ function consumeAuthRedirectHash() {
     if (accessToken) localStorage.setItem("access_token", accessToken);
     if (idToken) localStorage.setItem("id_token", idToken);
     if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
+    localStorage.removeItem(STORAGE_KEYS.lastResponse);
     if (stepUpTicket && stepUpExp) {
       localStorage.setItem(STORAGE_KEYS.stepUpTicket, stepUpTicket);
       localStorage.setItem(STORAGE_KEYS.stepUpTicketExp, stepUpExp);

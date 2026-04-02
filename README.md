@@ -235,6 +235,39 @@ Key tables in `backend/db/init.sql`:
 
 ---
 
+## 9.1 Local Tunnel With ngrok
+
+If you want Slack, mobile devices, or external systems to reach your local app, you can expose it with `ngrok`.
+
+Prerequisite:
+- Install the `ngrok` CLI locally and make sure `ngrok` is available on your `PATH`.
+
+Repo helper commands:
+- `npm run dev:tunnel`
+  Starts the local backend/frontend dev stack and opens the backend tunnel
+- `npm run dev:tunnel:only`
+  Opens the backend tunnel for an already-running local app
+- `npm run dev:tunnel:backend`
+  Opens only the backend tunnel
+- `npm run dev:tunnel:frontend`
+  Opens only the frontend tunnel
+- `node scripts/ngrok.js backend=4000 frontend=5173 custom=4010`
+  Opens any combination of named local ports
+
+Typical Slack workflow:
+1. Run `npm run dev:tunnel` to start the local app and tunnels together.
+3. Copy the generated backend `https://...ngrok...` URL.
+4. Configure your Slack app interactivity Request URL as:
+   - `<backend-ngrok-url>/delegation/slack/actions`
+5. If you want Slack links to open the public app, run `npm run dev:tunnel:frontend` separately and set `FRONTEND_APP_URL` in `backend/.env` to that frontend ngrok URL.
+
+Notes:
+- The free `ngrok` URL usually changes each time you restart the tunnel.
+- Slack interactive callbacks need the backend tunnel, not just the frontend tunnel.
+- Slack interactive callbacks also require `SLACK_SIGNING_SECRET` to be set in `backend/.env`.
+
+---
+
 ## 10) End-to-End Flows
 
 ## 10.1 Normal transfer via prompt

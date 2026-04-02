@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { STORAGE_KEYS, useApp } from "../context/AppContext";
 import { formatCurrency, formatShortTimestamp } from "../utils/format";
 import * as api from "../api/client";
@@ -149,6 +149,7 @@ export default function StockAgentView() {
   const [sending, setSending] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [approvedPendingTicket, setApprovedPendingTicket] = useState("");
+  const lastExternalApprovalStateRef = useRef("");
 
   const watchlist = Array.isArray(stockDashboard.market?.watchlist)
     ? stockDashboard.market.watchlist
@@ -193,10 +194,11 @@ export default function StockAgentView() {
       : stockDashboard.market?.statusMessage || "No stock data is available right now.";
   const isPositiveTicker = Number(selectedTicker?.change || 0) >= 0;
   const pendingTrade = stockDashboard.portfolio?.pendingTrade || null;
+  const pendingApprovalStatus = String(pendingTrade?.approvalStatus || "").trim().toLowerCase();
   const approvalAlreadySubmitted =
     pendingTrade?.type === "approval" &&
     pendingTrade?.approvalTicket &&
-    approvedPendingTicket === pendingTrade.approvalTicket;
+    (approvedPendingTicket === pendingTrade.approvalTicket || pendingApprovalStatus === "approved");
 
   useEffect(() => {
     loadStockDashboard();
@@ -217,6 +219,24 @@ export default function StockAgentView() {
       setSelectedSymbol(watchlist[0].symbol);
     }
   }, [watchlist, selectedTicker, selectedSymbol]);
+
+  useEffect(() => {
+    const currentKey = pendingTrade?.approvalTicket
+      ? `${pendingTrade.approvalTicket}:${pendingApprovalStatus || "pending"}`
+      : "";
+
+    if (!currentKey || currentKey === lastExternalApprovalStateRef.current) {
+      return;
+    }
+    lastExternalApprovalStateRef.current = currentKey;
+
+    if (pendingApprovalStatus === "approved") {
+      setApprovedPendingTicket(String(pendingTrade.approvalTicket));
+      setStatus("Approval completed in Slack. Waiting for the Trading Agent to finalize the protected trade.");
+    } else if (pendingApprovalStatus === "denied") {
+      setStatus("Approval was denied in Slack. The protected trade will not be executed.");
+    }
+  }, [pendingApprovalStatus, pendingTrade]);
 
   async function handleSend() {
     const trimmed = String(message || "").trim();
@@ -514,13 +534,20 @@ export default function StockAgentView() {
             <div className={`protected-trade ${pendingTrade.type}`}>
               <div className="protected-trade-copy">
                 <strong>
-                  {pendingTrade.type === "approval" ? "Approval required" : "Re-authentication required"}
+                  {pendingTrade.type === "approval"
+                    ? pendingApprovalStatus === "approved"
+                      ? "Approval recorded"
+                      : "Approval required"
+                    : "Re-authentication required"}
                 </strong>
                 <p>
                   {pendingTrade.action.toUpperCase()} {pendingTrade.shares} {pendingTrade.symbol} shares at{" "}
                   {formatCurrency(pendingTrade.price)} for {formatCurrency(pendingTrade.notional)}.
                 </p>
                 <span>{pendingTrade.reason}</span>
+                {pendingTrade.type === "approval" && pendingApprovalStatus === "approved" && (
+                  <span>Approved outside the app. The trade will resolve on the next dashboard refresh.</span>
+                )}
               </div>
               <div className="protected-trade-actions">
                 {pendingTrade.type === "reauth" ? (
@@ -540,7 +567,11 @@ export default function StockAgentView() {
                     disabled={sending || approvalAlreadySubmitted}
                   >
                     <span className="material-symbols-outlined">check_circle</span>
-                    {approvalAlreadySubmitted ? "Approved" : "Approve Trade"}
+                    {pendingApprovalStatus === "approved"
+                      ? "Approved in Slack"
+                      : approvalAlreadySubmitted
+                        ? "Approved"
+                        : "Approve Trade"}
                   </button>
                 )}
               </div>

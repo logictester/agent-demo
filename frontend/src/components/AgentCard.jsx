@@ -18,13 +18,14 @@ export default function AgentCard({ onSessionExpired }) {
 
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState({
-    text: localStorage.getItem(STORAGE_KEYS.lastResponse) || "Response will appear here.",
+    text: "Response will appear here.",
     isError: false,
     payload: null,
   });
   const [sending, setSending] = useState(false);
   const inputRef = useRef(null);
   const resumedPendingRef = useRef(false);
+  const externalApprovalHandledRef = useRef("");
 
   async function send(messageOverride, options = {}) {
     const msg = String(
@@ -108,7 +109,6 @@ export default function AgentCard({ onSessionExpired }) {
       await loadAuthorizationEvents();
 
       setResponse({ text: data.output || "", isError: false, payload: data });
-      localStorage.setItem(STORAGE_KEYS.lastResponse, data.output || "");
       setMessage("");
     } catch (error) {
       setResponse({ text: `Error: ${error.message}`, isError: true, payload: null });
@@ -128,7 +128,6 @@ export default function AgentCard({ onSessionExpired }) {
 
   function clearResponse() {
     setResponse({ text: "Response will appear here.", isError: false, payload: null });
-    localStorage.removeItem(STORAGE_KEYS.lastResponse);
   }
 
   useEffect(() => {
@@ -180,6 +179,67 @@ export default function AgentCard({ onSessionExpired }) {
       clearInterval(id);
     };
   }, [sending]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const approvalTicket = String(response?.payload?.approvalTicket || "").trim();
+    const requiresApproval = Boolean(response?.payload?.requiresApproval);
+    if (!approvalTicket || !requiresApproval) {
+      return;
+    }
+
+    const pollApproval = async () => {
+      if (cancelled) {
+        return;
+      }
+      try {
+        const data = await api.getApprovalById(approvalTicket);
+        const approval = data?.approval || null;
+        const status = String(approval?.status || "").trim().toLowerCase();
+        const handledKey = `${approvalTicket}:${status}`;
+        if (!status || handledKey === externalApprovalHandledRef.current) {
+          return;
+        }
+
+        if (status === "approved") {
+          externalApprovalHandledRef.current = handledKey;
+          localStorage.setItem(STORAGE_KEYS.approvalTicket, approvalTicket);
+          setResponse((prev) => ({
+            ...prev,
+            text: "Approval completed in Slack. Continuing your pending transfer..."
+          }));
+          const lastMsg = localStorage.getItem(STORAGE_KEYS.lastMessage) || message;
+          if (lastMsg) {
+            send(lastMsg, { approvalTicket });
+          }
+          return;
+        }
+
+        if (status === "denied" || status === "expired") {
+          externalApprovalHandledRef.current = handledKey;
+          localStorage.removeItem(STORAGE_KEYS.approvalTicket);
+          setResponse((prev) => ({
+            ...prev,
+            isError: status === "denied",
+            text:
+              status === "denied"
+                ? "Approval was denied in Slack. The pending transfer was not executed."
+                : "Approval expired before the transfer could continue."
+          }));
+          await loadPendingApprovals();
+        }
+      } catch {
+        // Keep polling quietly while the approval is pending.
+      }
+    };
+
+    pollApproval();
+    const id = setInterval(pollApproval, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [response, message, loadPendingApprovals]);
 
   function handleApproveNow(approvalTicket) {
     api.approveOperation(approvalTicket).then(() => {

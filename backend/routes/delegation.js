@@ -5,6 +5,7 @@ import {
   approveOperationById,
   completeIdvSession,
   createOperationApproval,
+  denyOperationById,
   createIdvSession,
   getDelegation,
   getOperationApprovalById,
@@ -15,10 +16,17 @@ import {
   listPendingApprovals,
   markIdvFailed,
   markIdvVerified,
+  resolveOperationApprovalFromSlack,
   setDelegatedOperations,
   verifyApprovedOperation
 } from "../services/delegation.js";
-import { sendSlackTestNotification } from "../services/slack.js";
+import {
+  buildSlackInteractionResponse,
+  parseSlackInteractionPayload,
+  sendSlackInteractionUpdate,
+  sendSlackTestNotification,
+  verifySlackSignature
+} from "../services/slack.js";
 
 const router = express.Router();
 const monokeeIdvStartUrl = process.env.MONOKEE_IDV_START_URL || "";
@@ -112,6 +120,10 @@ function buildReturnUrl(returnTo, status) {
     return `${url.pathname}${url.search}`;
   }
   return url.toString();
+}
+
+function captureRawBody(req, res, buffer) {
+  req.rawBody = buffer?.toString("utf8") || "";
 }
 
 router.get("/options", (req, res) => {
@@ -326,12 +338,86 @@ router.post("/notifications/slack/test", async (req, res) => {
   }
 });
 
+router.post("/slack/actions", express.urlencoded({ extended: false, verify: captureRawBody }), async (req, res) => {
+  if (!verifySlackSignature(req.rawBody, req.headers)) {
+    return res.status(401).json({ error: "Invalid Slack signature" });
+  }
+
+  const payload = parseSlackInteractionPayload(req.body?.payload);
+  const action = payload?.actions?.[0];
+  const value = parseSlackInteractionPayload(action?.value);
+  const actor = String(payload?.user?.username || payload?.user?.name || payload?.user?.id || "slack").trim();
+  const actionId = String(action?.action_id || "").trim().toLowerCase();
+
+  if (!payload || !action || !["approve", "deny"].includes(actionId)) {
+    return res.status(400).json({ error: "Unsupported Slack action payload" });
+  }
+
+  if (value?.kind === "test") {
+    const title = actionId === "approve" ? "Slack test approved" : "Slack test denied";
+    const responsePayload = buildSlackInteractionResponse(title, [
+      `Action handled successfully for ${actor}.`,
+      "Your Slack interactivity callback is working."
+    ]);
+    if (payload?.response_url) {
+      await sendSlackInteractionUpdate(payload.response_url, responsePayload);
+      return res.status(200).send("");
+    }
+    return res.json(responsePayload);
+  }
+
+  if (value?.kind !== "approval" || !value?.approvalId) {
+    return res.status(400).json({ error: "Slack action is missing an approval id" });
+  }
+
+  const resolved = await resolveOperationApprovalFromSlack(
+    value.approvalId,
+    actionId === "approve" ? "approved" : "denied",
+    `slack:${actor}`
+  );
+  if (!resolved) {
+    return res.status(404).json({ error: "Approval not found" });
+  }
+
+  const title =
+    resolved.status === "approved"
+      ? "Approval completed in Slack"
+      : resolved.status === "denied"
+        ? "Approval denied in Slack"
+        : resolved.status === "expired"
+          ? "Approval already expired"
+          : `Approval already ${resolved.status}`;
+
+  const responsePayload = buildSlackInteractionResponse(title, [
+    `Approval ID: ${resolved.id}`,
+    `Status: ${resolved.status}`,
+    `Handled by: ${actor}`
+  ]);
+  if (payload?.response_url) {
+    await sendSlackInteractionUpdate(payload.response_url, responsePayload);
+    return res.status(200).send("");
+  }
+  return res.json(responsePayload);
+});
+
 router.post("/approvals/:id/approve", async (req, res) => {
   const { user } = await resolveUser(req);
   if (!user?.sub) {
     return res.status(401).json({ error: "Authentication required" });
   }
   const approval = await approveOperationById(user.sub, req.params.id);
+  if (!approval) {
+    return res.status(404).json({ error: "Approval not found" });
+  }
+  return res.json({ approval });
+});
+
+router.post("/approvals/:id/deny", async (req, res) => {
+  const { user } = await resolveUser(req);
+  if (!user?.sub) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  const approval = await denyOperationById(user.sub, req.params.id);
   if (!approval) {
     return res.status(404).json({ error: "Approval not found" });
   }

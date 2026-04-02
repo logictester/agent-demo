@@ -68,6 +68,10 @@ export function getPendingApprovals() {
   return request("/delegation/approvals");
 }
 
+export function getApprovalById(approvalId) {
+  return request(`/delegation/approvals/${encodeURIComponent(approvalId)}`);
+}
+
 export function approveOperation(approvalId) {
   return request(
     `/delegation/approvals/${encodeURIComponent(approvalId)}/approve`,
